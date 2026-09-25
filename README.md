@@ -72,6 +72,10 @@ This project is a modified version of [Ranges](https://github.com/owlbear-rodeo/
 
 GNU GPLv3 — see [`LICENSE`](./LICENSE).
 
+## Support
+
+Found a bug or have a feature request? Open an issue on [GitHub](https://github.com/nachoijp/Daggerheight-Ranges/issues).
+
 ## Contributing
 
 Not currently accepting outside contributions.
