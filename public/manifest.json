@@ -1,0 +1,9 @@
+{
+  "name": "Daggerheight Ranges",
+  "version": "0.3.0",
+  "manifest_version": 1,
+  "author": "Ignacio Pedraza",
+  "icon": "/logo.png",
+  "background_url": "/background.html",
+  "description": "Relative 3D range and altitude measuring for Owlbear Rodeo"
+}

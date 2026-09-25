@@ -1,0 +1,120 @@
+/* Ported from owlbear-daggerheart-altitude/src/style.css's picker table
+   (.picker-scroll/.altitude-table/.rank-button and friends) — same OBR
+   theme CSS variables (with the same fallbacks), same layout approach. Only
+   the levels-editor/settings-modal rules from that file are left out, since
+   this embed is just the picker. */
+
+html,
+body {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--obr-text-primary, #fff);
+  background: transparent;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.picker-scroll {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--obr-overlay-hover, rgba(255, 255, 255, 0.14)) transparent;
+}
+
+.picker-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.picker-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.picker-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--obr-overlay-hover, rgba(255, 255, 255, 0.14));
+  border-radius: 4px;
+}
+
+.altitude-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+}
+
+.altitude-table th {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--obr-text-secondary, rgba(255, 255, 255, 0.7));
+  padding: 2px 0;
+  text-align: center;
+}
+
+.altitude-table td {
+  padding: 0;
+}
+
+.direction-col {
+  width: 20px;
+}
+
+.altitude-table th.direction-header {
+  font-size: 24px;
+  overflow: visible;
+}
+
+.rank-button {
+  width: 100%;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  cursor: pointer;
+  background-color: var(--obr-overlay, rgba(255, 255, 255, 0.06));
+  border: 2px solid transparent;
+  border-radius: 6px;
+  outline: 0;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: background-color 100ms ease, border-color 100ms ease;
+}
+
+.rank-button svg {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.rank-button:hover {
+  background-color: var(--obr-overlay-hover, rgba(255, 255, 255, 0.14));
+}
+
+.rank-button:focus-visible {
+  outline: 2px solid var(--obr-primary-main, #3b82f6);
+  outline-offset: 1px;
+}
+
+.rank-button.active {
+  border-color: var(--obr-border-selected, rgba(255, 255, 255, 0.8));
+  background-color: var(--obr-overlay-selected, rgba(255, 255, 255, 0.2));
+}
