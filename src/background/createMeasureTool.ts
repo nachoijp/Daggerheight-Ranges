@@ -1,11 +1,7 @@
 import OBR, {
   buildEffect,
-  buildLabel,
-  buildPath,
   buildShape,
   isImage,
-  isLabel,
-  isPath,
   isShape,
   Math2,
   type GridScale,
@@ -19,10 +15,23 @@ import OBR, {
 } from "@owlbear-rodeo/sdk";
 import measureIcon from "../assets/range.svg";
 import { canUpdateItem } from "./permission";
+import {
+  LocalMeasureView,
+  mirrorEnd,
+  mirrorHeightText,
+  mirrorStart,
+  mirrorStates,
+} from "./measureMirror";
+import {
+  getBandLabel,
+  sameLecturaState,
+  type LecturaContext,
+  type LecturaState,
+} from "../render/lecturaItems";
 import ringSksl from "./ring.frag";
 import { getPluginId } from "../util/getPluginId";
 import { getMetadata } from "../util/getMetadata";
-import { Color, getStoredTheme, Theme } from "../theme/themes";
+import { getStoredTheme, Theme } from "../theme/themes";
 import { getColorString, getLabelTextColor } from "../util/color";
 import {
   DEFAULT_TOLERANCE,
@@ -34,8 +43,7 @@ import { findBand } from "../engine/bands";
 import { Band, BandSet } from "../engine/types";
 import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
 import { flattenGridScale } from "../util/flattenGridScale";
-import { buildIconStackCommands, getStrokeWidthRatio, type Direction } from "../render/iconStack";
-import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "../render/iconAnchor";
+import { getTokenBounds } from "../render/iconAnchor";
 import {
   clearTokenHeightMarker,
   getAllTokenHeightMarkers,
@@ -113,7 +121,6 @@ let activeCenter: Vector2 = { x: 0, y: 0 };
 // mirrors activeCenter there.
 let activeLecturaCenter: Vector2 = { x: 0, y: 0 };
 let activeBandSet: BandSet | null = null;
-let activeTheme: Theme | null = null;
 let activeLanguage: Language = DEFAULT_LANGUAGE;
 let activeHotkeys: GlobalSettings = DEFAULT_GLOBAL_SETTINGS;
 // Mirrors activeHotkeys.enableAltitude (missing = true) — read fresh from
@@ -148,6 +155,17 @@ let activeTokenHeights: Map<string, number> = new Map();
 // the reasonable cost of not reflecting another player moving a token mid-
 // measurement.
 let activeTokens: Image[] = [];
+// This client's own copy of the Lecturas + height label (client-local
+// items, see measureMirror.ts), plus the last state drawn for each, so a
+// refresh only touches — and only broadcasts — what actually changed.
+let measureView: LocalMeasureView | null = null;
+let activeLecturaStates: Map<string, LecturaState> = new Map();
+let activeHeightLabelText = "";
+// Bumped by cleanup(): lets onToolDown notice, after each of its awaits,
+// that the Medición it was setting up already ended (a quick click whose
+// onToolUp ran mid-setup) instead of leaving orphaned items behind — which
+// would now include other clients' mirrored copies.
+let toolDownGeneration = 0;
 
 // onToolDragMove can fire far more often than the screen repaints (raw
 // mousemove events, not frame-synced). Doing the full reposition+relabel
@@ -175,7 +193,9 @@ function scheduleRefresh(pointerPosition: Vector2) {
     activeCenter = pendingPointerPosition;
     activeLecturaCenter = pendingPointerPosition;
     pendingPointerPosition = null;
-    refreshItems();
+    refreshBandPositions();
+    refreshLecturas();
+    measureView?.moveHeightLabel(activeCenter);
     if (shaders.length > 0) {
       OBR.scene.local.updateItems(shaders, (items) => {
         for (const item of items) {
@@ -206,7 +226,7 @@ function scheduleLecturaRefresh(position: Vector2) {
     }
     activeLecturaCenter = pendingLecturaPosition;
     pendingLecturaPosition = null;
-    refreshItems();
+    refreshLecturas();
   }, 16);
 }
 
@@ -246,34 +266,6 @@ function getBandRing(
     .metadata({
       [getPluginId("offset")]: offset,
     })
-    .disableHit(true)
-    .layer("POPOVER")
-    .build();
-}
-
-function getBandLabel(
-  center: Vector2,
-  offset: Vector2,
-  text: string,
-  backgroundColor: string,
-  textColor: string,
-  opacityScale = 1
-) {
-  return buildLabel()
-    .fillColor(textColor)
-    .fillOpacity(1.0 * opacityScale)
-    .plainText(text)
-    .position(Math2.subtract(center, offset))
-    .pointerDirection("UP")
-    .backgroundOpacity(0.8 * opacityScale)
-    .backgroundColor(backgroundColor)
-    .padding(8)
-    .cornerRadius(20)
-    .pointerHeight(0)
-    .metadata({
-      [getPluginId("offset")]: offset,
-    })
-    .minViewScale(1)
     .disableHit(true)
     .layer("POPOVER")
     .build();
@@ -408,9 +400,6 @@ function getBandItems(
   return items;
 }
 
-const lecturaColor: Color = { r: 66, g: 66, b: 66 };
-const heightLabelOffset: Vector2 = { x: 0, y: -40 };
-
 /**
  * Half the token's larger on-screen dimension, in grid units — how big
  * Tolerancia treats the token as being. Reuses the same footprint math the
@@ -446,11 +435,6 @@ function getLecturaBandIndex(distance: number, bandSet: BandSet): number | undef
   return band ? bandSet.bands.indexOf(band) : undefined;
 }
 
-// A token beyond the Filtro's distance is dimmed rather than hidden, so
-// "which tokens are in range" reads as a highlight against everything else
-// staying visible for context, instead of losing track of them entirely.
-const FILTERED_OUT_OPACITY_SCALE = 0.25;
-
 function isWithinFilter(distance: number, bandSet: BandSet): boolean {
   if (!bandSet.filterEnabled || !bandSet.filterBandId) {
     return true;
@@ -462,10 +446,6 @@ function isWithinFilter(distance: number, bandSet: BandSet): boolean {
     return true;
   }
   return distance <= filterBand.radius;
-}
-
-function lecturaOpacityScale(withinFilter: boolean): number {
-  return withinFilter ? 1 : FILTERED_OUT_OPACITY_SCALE;
 }
 
 // bandIndex is signed: 0 = Suelo, positive = that many Bandas up, negative =
@@ -631,303 +611,32 @@ async function restoreOriginMarker() {
   });
 }
 
-const lecturaLabelOffset: Vector2 = { x: 0, y: 40 };
-// Ring/circle modes are sized to exactly match the token's own footprint —
-// no extra padding, it read as visibly bigger than the token otherwise.
-const LECTURA_SHAPE_PADDING = 1;
-
-// dz = Origen height - token height (see tokenDz). Positive means the
-// Origen is higher, i.e. the token is below it; negative means the token is
-// above the Origen.
-// Owlbear's own text-rendering font doesn't include ↑/↓ glyphs (they render
-// as a missing-character box on the map) but does support emoji.
-function directionArrow(dz: number): string {
-  if (dz > 0) {
-    return " ⬇️";
-  }
-  if (dz < 0) {
-    return " ⬆️";
-  }
-  return "";
-}
-
-/** Mirrors directionArrow's sign-branching, as the up/down taper an icon-stack Lectura should point. */
-function lecturaIconDirection(dz: number): Direction {
-  return dz > 0 ? "down" : "up";
-}
-
-function getLecturaLabelText(index: number | undefined, dz: number, bandSet: BandSet): string {
-  const bandName =
-    index === undefined ? translate(activeLanguage, "onMap.outOfRange") : bandSet.bands[index].name;
-  return `${bandName}${directionArrow(dz)}`;
-}
-
-function lecturaColorFor(index: number | undefined, theme: Theme): Color {
-  return index === undefined ? lecturaColor : theme.colors[index % theme.colors.length];
-}
-
-/** Center + padded size shared by the ring and circle Visualización modes. */
-function lecturaShapeGeometry(token: Image, dpi: number) {
-  const { topLeft, scaledWidth, scaledHeight } = getTokenBounds(token, dpi);
-  return {
-    center: { x: topLeft.x + scaledWidth / 2, y: topLeft.y + scaledHeight / 2 },
-    size: Math.max(scaledWidth, scaledHeight) * LECTURA_SHAPE_PADDING,
-  };
-}
-
-/** Top-left position for a Shape item of the given size/center, accounting for RECTANGLE anchoring at its corner vs CIRCLE at its center. */
-function lecturaShapePosition(center: Vector2, size: number, bandShape: BandSet["shape"]): Vector2 {
-  const offset = bandShape === "square" ? { x: size / 2, y: size / 2 } : { x: 0, y: 0 };
-  return Math2.subtract(center, offset);
-}
-
-function withLecturaMetadata(item: Item, tokenId: string, role: "visual" | "label"): Item {
-  return {
-    ...item,
-    metadata: {
-      ...item.metadata,
-      [getPluginId("lecturaTokenId")]: tokenId,
-      [getPluginId("lecturaRole")]: role,
-    },
-  };
-}
-
-function buildLecturaVisualItem(
-  token: Image,
-  dpi: number,
-  bandSet: BandSet,
-  theme: Theme,
-  index: number | undefined,
-  withinFilter: boolean,
-  dz: number
-): Item {
-  const visualization = bandSet.visualization ?? "icon";
-  const color = getColorString(lecturaColorFor(index, theme));
-  const opacityScale = lecturaOpacityScale(withinFilter);
-
-  if (visualization === "icon") {
-    const shape =
-      (index !== undefined ? bandSet.bands[index].iconShape : undefined) ??
-      bandSet.iconShape ??
-      "circle";
-    // Opposite side from the persistent marker's own position, so the two
-    // don't render on top of each other when a measured token has both.
-    const position = oppositeIconPosition(bandSet.iconPosition ?? "top");
-    const size = bandSet.iconSize ?? 1;
-    const iconDistance = bandSet.iconDistance ?? 0.15;
-    const direction = lecturaIconDirection(dz);
-    const commands =
-      index === undefined
-        ? []
-        : buildIconStackCommands(shape, index + 1, dpi, size, position, direction);
-    const item = buildPath()
-      .commands(commands)
-      .fillColor(color)
-      .fillOpacity(1 * opacityScale)
-      .strokeColor("#111827")
-      .strokeOpacity(0.65 * opacityScale)
-      .strokeWidth(dpi * getStrokeWidthRatio(shape))
-      .position(computeIconAnchor(token, dpi, position, iconDistance))
-      .disableHit(true)
-      .layer("POPOVER")
-      .build();
-    return withLecturaMetadata(item, token.id, "visual");
-  }
-
-  const { center, size } = lecturaShapeGeometry(token, dpi);
-  const shapeType = bandSet.shape === "square" ? "RECTANGLE" : "CIRCLE";
-  const position = lecturaShapePosition(center, size, bandSet.shape);
-
-  if (visualization === "ring") {
-    const item = buildShape()
-      .shapeType(shapeType)
-      .fillOpacity(0)
-      .strokeColor(color)
-      .strokeOpacity((index === undefined ? 0 : 0.9) * opacityScale)
-      .strokeWidth(dpi * (bandSet.ringWidth ?? 0.05))
-      .position(position)
-      .width(size)
-      .height(size)
-      .disableHit(true)
-      .layer("POPOVER")
-      .build();
-    return withLecturaMetadata(item, token.id, "visual");
-  }
-
-  // circle
-  const item = buildShape()
-    .shapeType(shapeType)
-    .fillColor(color)
-    .fillOpacity((index === undefined ? 0 : bandSet.circleOpacity ?? 0.35) * opacityScale)
-    .strokeOpacity(0)
-    .position(position)
-    .width(size)
-    .height(size)
-    .disableHit(true)
-    .layer("POPOVER")
-    .build();
-  return withLecturaMetadata(item, token.id, "visual");
-}
-
-function buildLecturaLabelItem(
-  token: Image,
-  bandSet: BandSet,
-  theme: Theme,
-  index: number | undefined,
-  dz: number,
-  withinFilter: boolean
-): Item {
-  const color = lecturaColorFor(index, theme);
-  const textColor = getLabelTextColor(color, 180);
-  // Unlike the icon/ring/circle visual (dimmed, still visible for context),
-  // a filtered-out token's label is hidden outright — the Filtro is meant
-  // to answer "which tokens match", and a dimmed label is still readable
-  // clutter for tokens that don't.
-  const item = getBandLabel(
-    token.position,
-    lecturaLabelOffset,
-    getLecturaLabelText(index, dz, bandSet),
-    getColorString(color),
-    textColor,
-    withinFilter ? 1 : 0
-  );
-  return withLecturaMetadata(item, token.id, "label");
-}
-
-function buildLecturaItems(
-  token: Image,
-  dpi: number,
-  bandSet: BandSet,
-  theme: Theme
-): Item[] {
+/** One token's Lectura, as the measuring client computes it — every client draws it from this. */
+function computeLecturaState(token: Image, bandSet: BandSet): LecturaState {
   const dz = tokenDz(token);
-  const distance = getLecturaDistance(token.position, dpi, dz, bandSet, getTokenRadius(token, dpi));
-  const index = getLecturaBandIndex(distance, bandSet);
-  const withinFilter = isWithinFilter(distance, bandSet);
-  const items = [buildLecturaVisualItem(token, dpi, bandSet, theme, index, withinFilter, dz)];
-  if (bandSet.showLabel) {
-    items.push(buildLecturaLabelItem(token, bandSet, theme, index, dz, withinFilter));
-  }
-  return items;
-}
-
-function getHeightLabelItem(center: Vector2): Item {
-  const textColor = getLabelTextColor(lecturaColor, 180);
-  const item = getBandLabel(
-    center,
-    heightLabelOffset,
-    currentHeightLabelText(),
-    getColorString(lecturaColor),
-    textColor
+  const distance = getLecturaDistance(
+    token.position,
+    activeDpi,
+    dz,
+    bandSet,
+    getTokenRadius(token, activeDpi)
   );
   return {
-    ...item,
-    metadata: { ...item.metadata, [getPluginId("heightLabel")]: true },
+    index: getLecturaBandIndex(distance, bandSet) ?? null,
+    withinFilter: isWithinFilter(distance, bandSet),
+    dz,
   };
 }
 
-// Existing items are mutated in place (same ids) rather than rebuilt from
-// scratch each time — replacing the whole array with freshly built items
-// (new ids every call) made the synced rings appear stuck/laggy for other
-// clients, since it stops looking like "move this item" and starts looking
-// like "delete everything, add it all back" to the interaction sync.
-function refreshItems() {
-  if (!bandInteraction || !activeBandSet || !activeTheme) {
+// Only the band rings/labels live in the interaction now — it only ever
+// moves them, which is the one kind of change it reliably syncs.
+function refreshBandPositions() {
+  if (!bandInteraction) {
     return;
   }
-  const bandSet = activeBandSet;
-  const theme = activeTheme;
-  const tokenById = new Map(activeTokens.map((token) => [token.id, token]));
-  const heightLabelText = currentHeightLabelText();
   const update = bandInteraction[0];
   update((draft) => {
     for (const item of draft) {
-      const lecturaTokenId = getMetadata(
-        item.metadata,
-        getPluginId("lecturaTokenId"),
-        ""
-      );
-      if (lecturaTokenId) {
-        const token = tokenById.get(lecturaTokenId);
-        if (token) {
-          const role = getMetadata(item.metadata, getPluginId("lecturaRole"), "visual");
-          const dz = tokenDz(token);
-          const distance = getLecturaDistance(
-            token.position,
-            activeDpi,
-            dz,
-            bandSet,
-            getTokenRadius(token, activeDpi)
-          );
-          const index = getLecturaBandIndex(distance, bandSet);
-          const withinFilter = isWithinFilter(distance, bandSet);
-          const opacityScale = lecturaOpacityScale(withinFilter);
-          if (role === "label" && isLabel(item)) {
-            // Hidden outright when filtered out, not just dimmed — see
-            // buildLecturaLabelItem's comment for why labels differ from
-            // the icon/ring/circle visual.
-            const labelOpacity = withinFilter ? 1 : 0;
-            const color = lecturaColorFor(index, theme);
-            item.position = Math2.subtract(token.position, lecturaLabelOffset);
-            item.text.plainText = getLecturaLabelText(index, dz, bandSet);
-            item.text.style.fillColor = getLabelTextColor(color, 180);
-            item.text.style.fillOpacity = labelOpacity;
-            item.style.backgroundColor = getColorString(color);
-            item.style.backgroundOpacity = 0.8 * labelOpacity;
-          } else {
-            const visualization = bandSet.visualization ?? "icon";
-            const color = getColorString(lecturaColorFor(index, theme));
-            if (visualization === "icon" && isPath(item)) {
-              const shape =
-                (index !== undefined ? bandSet.bands[index].iconShape : undefined) ??
-                bandSet.iconShape ??
-                "circle";
-              const position = oppositeIconPosition(bandSet.iconPosition ?? "top");
-              const size = bandSet.iconSize ?? 1;
-              const iconDistance = bandSet.iconDistance ?? 0.15;
-              item.position = computeIconAnchor(token, activeDpi, position, iconDistance);
-              item.commands =
-                index === undefined
-                  ? []
-                  : buildIconStackCommands(
-                      shape,
-                      index + 1,
-                      activeDpi,
-                      size,
-                      position,
-                      lecturaIconDirection(dz)
-                    );
-              item.style.fillColor = color;
-              item.style.fillOpacity = 1 * opacityScale;
-              item.style.strokeOpacity = 0.65 * opacityScale;
-            } else if (isShape(item)) {
-              const { center, size } = lecturaShapeGeometry(token, activeDpi);
-              item.position = lecturaShapePosition(center, size, bandSet.shape);
-              item.width = size;
-              item.height = size;
-              if (visualization === "ring") {
-                item.style.strokeColor = color;
-                item.style.strokeOpacity = (index === undefined ? 0 : 0.9) * opacityScale;
-                item.style.strokeWidth = activeDpi * (bandSet.ringWidth ?? 0.05);
-                item.style.fillOpacity = 0;
-              } else {
-                item.style.fillColor = color;
-                item.style.fillOpacity =
-                  (index === undefined ? 0 : bandSet.circleOpacity ?? 0.35) * opacityScale;
-                item.style.strokeOpacity = 0;
-              }
-            }
-          }
-        }
-        continue;
-      }
-      if (getMetadata(item.metadata, getPluginId("heightLabel"), false)) {
-        if (isLabel(item)) {
-          item.position = Math2.subtract(activeCenter, heightLabelOffset);
-          item.text.plainText = heightLabelText;
-        }
-        continue;
-      }
       const offset = getMetadata(item.metadata, getPluginId("offset"), {
         x: 0,
         y: 0,
@@ -936,6 +645,41 @@ function refreshItems() {
     }
   });
 }
+
+// Recomputes every Lectura but only touches (and only broadcasts) the ones
+// whose drawn result actually changed — most pointer moves change none.
+function refreshLecturas() {
+  if (!measureView || !activeBandSet || !activeLecturasEnabled) {
+    return;
+  }
+  const changed: Record<string, LecturaState> = {};
+  let anyChanged = false;
+  for (const token of activeTokens) {
+    const state = computeLecturaState(token, activeBandSet);
+    if (!sameLecturaState(activeLecturaStates.get(token.id), state)) {
+      activeLecturaStates.set(token.id, state);
+      changed[token.id] = state;
+      anyChanged = true;
+    }
+  }
+  if (anyChanged) {
+    measureView.applyStates(changed);
+    mirrorStates(changed);
+  }
+}
+
+function refreshHeightLabel() {
+  if (!measureView || !activeAltitudeEnabled) {
+    return;
+  }
+  const text = currentHeightLabelText();
+  if (text !== activeHeightLabelText) {
+    activeHeightLabelText = text;
+    measureView.setHeightText(text);
+    mirrorHeightText(text);
+  }
+}
+
 
 function cleanup() {
   if (bandInteraction) {
@@ -952,9 +696,16 @@ function cleanup() {
     OBR.scene.local.deleteItems(shaders.map((shader) => shader.id));
     shaders = [];
   }
+  if (measureView) {
+    measureView.end();
+    measureView = null;
+  }
+  mirrorEnd();
+  toolDownGeneration++;
+  activeLecturaStates = new Map();
+  activeHeightLabelText = "";
   downTarget = null;
   activeBandSet = null;
-  activeTheme = null;
   sortedBands = [];
   bandIndex = 0;
   activeTokens = [];
@@ -1010,6 +761,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
     },
     async onToolDown(_, event) {
       cleanup();
+      const generation = toolDownGeneration;
 
       const tokenPosition =
         event.target && !event.target.locked && event.target.position;
@@ -1021,22 +773,37 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         grabOffset = { x: 0, y: 0 };
       }
 
-      // Check the token interaction first so the move event doesn't fire for the
-      // band items while checking the permissions
-      if (
-        event.target &&
-        !event.target.locked &&
-        event.target.type === "IMAGE" &&
-        (await canUpdateItem(event.target))
-      ) {
-        downTarget = event.target;
-      }
-
-      const [sceneMetadata, dpi, gridScale] = await Promise.all([
+      // Everything onToolDown needs is fetched at once instead of one call
+      // after another — each is its own round trip, and the Medición (for
+      // everyone, not just this client) can't appear until all are back.
+      // downTarget is still set the moment the permission check resolves,
+      // not after the rest: the move/drag-start handlers route on it, so
+      // the band items' move path must not fire for a token grab.
+      const target = event.target;
+      const permissionCheck =
+        target && !target.locked && target.type === "IMAGE"
+          ? canUpdateItem(target).then((canUpdate) => {
+              if (canUpdate && generation === toolDownGeneration) {
+                downTarget = target;
+              }
+            })
+          : Promise.resolve();
+      const [sceneMetadata, dpi, gridScale, characterImages, allHeightMarkers] = await Promise.all([
         OBR.scene.getMetadata(),
         OBR.scene.grid.getDpi(),
         OBR.scene.grid.getScale(),
+        OBR.scene.items.getItems<Image>(
+          (item): item is Image => isImage(item) && item.layer === "CHARACTER"
+        ),
+        // Fetched unconditionally (whether the altitude feature is on is
+        // only known from sceneMetadata above) — cheaper than a second
+        // sequential round trip when it is.
+        getAllTokenHeightMarkers(),
+        permissionCheck,
       ]);
+      if (generation !== toolDownGeneration) {
+        return;
+      }
       const language = languageFromMetadata(sceneMetadata);
       const rawBandSet = (sceneMetadata[getPluginId("bandSet")] ??
         getDefaultBandSets(language)[0]) as BandSet;
@@ -1046,7 +813,6 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       activeCenter = initialPosition;
       activeLecturaCenter = initialPosition;
       activeBandSet = bandSet;
-      activeTheme = theme;
       activeLanguage = language;
       activeHotkeys = globalSettingsFromMetadata(sceneMetadata);
       activeAltitudeEnabled = activeHotkeys.enableAltitude ?? true;
@@ -1056,16 +822,14 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         downTarget && isImage(downTarget) ? getTokenRadius(downTarget, dpi) : 0;
       sortedBands = [...bandSet.bands].sort((a, b) => a.radius - b.radius);
 
+      // Not awaited here — awaited alongside the band interaction below, so
+      // the two local/remote setups overlap instead of queueing.
       shaders = getShaders(initialPosition, theme, bandSet, dpi);
-      await OBR.scene.local.addItems(shaders);
+      const addedShaders = shaders;
+      const shadersAdded = OBR.scene.local.addItems(addedShaders);
 
-      const [tokens, heightMarkers] = await Promise.all([
-        OBR.scene.items.getItems<Image>(
-          (item): item is Image =>
-            isImage(item) && item.layer === "CHARACTER" && item.id !== downTarget?.id
-        ),
-        activeAltitudeEnabled ? getAllTokenHeightMarkers() : Promise.resolve([]),
-      ]);
+      const tokens = characterImages.filter((item) => item.id !== downTarget?.id);
+      const heightMarkers = activeAltitudeEnabled ? allHeightMarkers : [];
       activeTokens = tokens;
       activeTokenHeights = new Map();
       for (const marker of heightMarkers) {
@@ -1110,16 +874,43 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         originMarkerBeforeEdit = undefined;
         originMarkerKnownExisting = undefined;
       }
+      if (generation !== toolDownGeneration) {
+        return;
+      }
       const bandItems = getBandItems(activeCenter, theme, bandSet, dpi, gridScale);
-      const lecturaItems = activeLecturasEnabled
-        ? activeTokens.flatMap((token) => buildLecturaItems(token, dpi, bandSet, theme))
-        : [];
-      const heightItem = activeAltitudeEnabled ? [getHeightLabelItem(activeCenter)] : [];
-      bandInteraction = await OBR.interaction.startItemInteraction([
-        ...bandItems,
-        ...lecturaItems,
-        ...heightItem,
+      const [interaction] = await Promise.all([
+        OBR.interaction.startItemInteraction(bandItems),
+        shadersAdded,
       ]);
+      if (generation !== toolDownGeneration) {
+        interaction[1]();
+        // cleanup() may have run before these finished adding, so its own
+        // delete could have missed them.
+        OBR.scene.local.deleteItems(addedShaders.map((shader) => shader.id));
+        return;
+      }
+      bandInteraction = interaction;
+
+      const ctx: LecturaContext = { bandSet, theme, dpi, language };
+      activeLecturaStates = new Map();
+      if (activeLecturasEnabled) {
+        for (const token of activeTokens) {
+          activeLecturaStates.set(token.id, computeLecturaState(token, bandSet));
+        }
+      }
+      const states = Object.fromEntries(activeLecturaStates);
+      activeHeightLabelText = currentHeightLabelText();
+      const heightLabel = activeAltitudeEnabled
+        ? { center: activeCenter, text: activeHeightLabelText }
+        : null;
+      measureView = new LocalMeasureView(ctx);
+      measureView.start(activeTokens, states, heightLabel);
+      // Sent only once the interaction exists: other clients attach the
+      // shaders/height label to this ring, which has to exist there first.
+      const firstRing = bandItems.find((item) => isShape(item));
+      if (firstRing) {
+        mirrorStart({ ctx, states, shaders, ringId: firstRing.id, heightLabel });
+      }
     },
     async onToolDragStart() {
       if (downTarget) {
@@ -1152,15 +943,17 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       }
       if (event.code === letterToCode(activeHotkeys.hotkeyRaise)) {
         bandIndex = Math.min(bandIndex + 1, sortedBands.length);
-        refreshItems();
+        refreshLecturas();
+        refreshHeightLabel();
       } else if (event.code === letterToCode(activeHotkeys.hotkeyLower)) {
         bandIndex = Math.max(bandIndex - 1, -sortedBands.length);
-        refreshItems();
+        refreshLecturas();
+        refreshHeightLabel();
       } else {
         return;
       }
       // Not awaited: the ephemeral label above already updated synchronously
-      // via refreshItems(); the persistent marker's own write is coalesced
+      // via refreshHeightLabel(); the persistent marker's own write is coalesced
       // (see scheduleOriginMarkerSync's comment) so onKeyDown doesn't block
       // on the network for every press.
       if (downTarget) {

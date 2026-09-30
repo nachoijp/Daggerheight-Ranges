@@ -4,6 +4,7 @@ import { createThemeAction } from "./createThemeAction";
 import { createSettingsAction } from "./createSettingsAction";
 import { createTokenHeightMenu } from "./createTokenHeightMenu";
 import { syncSettings } from "./syncSettings";
+import { startMeasureMirrorReceiver } from "./measureMirror";
 import { refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
 import { languageFromMetadata } from "../i18n/language";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
@@ -74,6 +75,7 @@ const SCENE_READY_TIMEOUT_MS = 5000;
 async function init() {
   await waitUntilOBRReady();
   syncSettings();
+  startMeasureMirrorReceiver();
 
   // Toolbar icon labels, the Medición tool's own activation shortcut, and
   // whether the Altura context menu is registered at all are set once here
