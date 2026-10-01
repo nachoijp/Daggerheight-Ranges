@@ -69,6 +69,18 @@ type OriginMarkerRequest = {
 };
 
 let bandInteraction: InteractionManager<Item[]> | null = null;
+// Owlbear stops network-syncing an interaction 15s after it starts — other
+// clients' rings just vanish ("Interaction lasted too long: network sync
+// stopped"; `setTimeout(..., 15*1e3)` in Owlbear's player-connection
+// bundle, observed 2026-09-30 — undocumented, may change). Original Ranges
+// has the same limit; rather than work around it, the mirrored gradient,
+// Lecturas and height label are ended on other clients at the same moment,
+// so the whole Medición disappears together there like a normal end
+// instead of leaving a frozen gradient behind. Slightly early on purpose:
+// Owlbear's own timer started a little before startItemInteraction
+// resolved here. The measuring client's own view is unaffected.
+const REMOTE_SYNC_CUTOFF_MS = 14900;
+let remoteSyncCutoffTimer: ReturnType<typeof setTimeout> | null = null;
 let tokenInteraction: InteractionManager<Item> | null = null;
 let shaders: Item[] = [];
 let grabOffset: Vector2 = { x: 0, y: 0 };
@@ -682,6 +694,10 @@ function refreshHeightLabel() {
 
 
 function cleanup() {
+  if (remoteSyncCutoffTimer) {
+    clearTimeout(remoteSyncCutoffTimer);
+    remoteSyncCutoffTimer = null;
+  }
   if (bandInteraction) {
     const cancel = bandInteraction[1];
     cancel();
@@ -890,6 +906,10 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         return;
       }
       bandInteraction = interaction;
+      remoteSyncCutoffTimer = setTimeout(() => {
+        remoteSyncCutoffTimer = null;
+        mirrorEnd();
+      }, REMOTE_SYNC_CUTOFF_MS);
 
       const ctx: LecturaContext = { bandSet, theme, dpi, language };
       activeLecturaStates = new Map();
