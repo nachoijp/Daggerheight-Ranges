@@ -191,6 +191,14 @@ let toolDownGeneration = 0;
 let pendingPointerPosition: Vector2 | null = null;
 let refreshScheduled = false;
 
+// The latest token-drag move, still waiting on its snapPosition round trip.
+// Releasing right after a move used to read the token's position before that
+// reply came back, so the token landed one (or, on a fast flick, every) step
+// behind where it was dropped; finalizeMove waits for it first. Replies come
+// back in order, so the latest one being done means every earlier one is too.
+// Never rejects (a failed snap just keeps the previous position).
+let pendingMove: Promise<void> | null = null;
+
 function scheduleRefresh(pointerPosition: Vector2) {
   pendingPointerPosition = pointerPosition;
   if (refreshScheduled) {
@@ -731,11 +739,16 @@ function cleanup() {
   originMarkerBeforeEdit = undefined;
   originMarkerKnownExisting = undefined;
   liveTokenPosition = null;
+  pendingMove = null;
 }
 
 async function finalizeMove() {
-  if (tokenInteraction) {
-    const final = tokenInteraction[0](() => {});
+  const interaction = tokenInteraction;
+  if (interaction) {
+    if (pendingMove) {
+      await pendingMove;
+    }
+    const final = interaction[0](() => {});
     const withAttachments = await OBR.scene.items.getItemAttachments([
       final.id,
     ]);
@@ -934,9 +947,19 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
     },
     async onToolDragStart() {
       if (downTarget) {
-        tokenInteraction = await OBR.interaction.startItemInteraction(
+        const generation = toolDownGeneration;
+        const interaction = await OBR.interaction.startItemInteraction(
           downTarget
         );
+        // Released before this came back (a fast flick): the Medición is
+        // already over and cleaned up, so nothing would ever cancel this
+        // interaction — the token would stay held in it until the next
+        // Medición. Cancel it here instead.
+        if (generation !== toolDownGeneration) {
+          interaction[1]();
+          return;
+        }
+        tokenInteraction = interaction;
       }
     },
     async onToolDragMove(_, event) {
@@ -944,14 +967,19 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       if (downTarget) {
         if (tokenInteraction) {
           const update = tokenInteraction[0];
-          const position = await OBR.scene.grid.snapPosition(
-            Math2.subtract(event.pointerPosition, grabOffset)
-          );
-          update?.((token) => {
-            token.position = position;
+          const move = OBR.scene.grid
+            .snapPosition(Math2.subtract(event.pointerPosition, grabOffset))
+            .then((position) => {
+              update?.((token) => {
+                token.position = position;
+              });
+              liveTokenPosition = position;
+              scheduleLecturaRefresh(position);
+            });
+          pendingMove = move.catch((error) => {
+            console.error("Daggerheight: failed to snap the dragged token", error);
           });
-          liveTokenPosition = position;
-          scheduleLecturaRefresh(position);
+          await pendingMove;
         }
       } else if (bandInteraction) {
         scheduleRefresh(event.pointerPosition);
