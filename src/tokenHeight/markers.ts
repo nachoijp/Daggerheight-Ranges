@@ -15,6 +15,8 @@ import { buildIconStackCommands, getStrokeWidthRatio, Direction } from "../rende
 import { computeIconAnchor } from "../render/iconAnchor";
 import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
 import { languageFromMetadata } from "../i18n/language";
+import { deepEqual } from "../util/deepEqual";
+import { globalSettingsFromMetadata, type MarkerStyle } from "../settings/globalSettings";
 
 const METADATA_KEY = getPluginId("tokenHeight");
 
@@ -39,16 +41,48 @@ export function isTokenHeightMarker(item: Item): item is Path {
   return isPath(item) && getTokenHeightState(item) !== undefined;
 }
 
+/**
+ * tokenId -> signed height in grid units (positive = marked "up", negative =
+ * "down"), resolved against the given BandSet. A token with no marker, or
+ * whose marker's Banda was deleted, has no entry — treated as ground (0).
+ */
+export function tokenHeightsFromMarkers(markers: Item[], bandSet: BandSet): Map<string, number> {
+  const heights = new Map<string, number>();
+  for (const marker of markers) {
+    const state = marker.attachedTo && getTokenHeightState(marker);
+    const band = state && bandSet.bands.find((b) => b.id === state.bandId);
+    if (marker.attachedTo && state && band) {
+      heights.set(marker.attachedTo, state.direction === "up" ? band.radius : -band.radius);
+    }
+  }
+  return heights;
+}
+
 export async function getAllTokenHeightMarkers(): Promise<Path[]> {
   return OBR.scene.items.getItems<Path>(isTokenHeightMarker);
 }
 
 export async function getActiveBandSet(): Promise<BandSet> {
+  return (await getActiveMarkerConfig()).bandSet;
+}
+
+/** Everything a marker's look depends on that lives in scene metadata — one round trip for both. */
+async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; style: MarkerStyle }> {
   const sceneMetadata = await OBR.scene.getMetadata();
   const language = languageFromMetadata(sceneMetadata);
   const rawBandSet = (sceneMetadata[getPluginId("bandSet")] ??
     getDefaultBandSets(language)[0]) as BandSet;
-  return resolveBandSet(rawBandSet, language);
+  return {
+    bandSet: resolveBandSet(rawBandSet, language),
+    style: globalSettingsFromMetadata(sceneMetadata).markerStyle ?? "icons",
+  };
+}
+
+// In the "label" style the marker is still there (it's what stores the
+// token's height, and what the label is drawn from) — just invisible.
+const MARKER_STROKE_OPACITY = 0.65;
+function markerOpacity(style: MarkerStyle): number {
+  return style === "label" ? 0 : 1;
 }
 
 /** Mutates a marker draft's geometry/color/anchor/metadata in place. Shared by setTokenHeightMarker's update path and refreshAllTokenHeightMarkers, so both apply the exact same derivation. */
@@ -60,7 +94,8 @@ function applyMarkerGeometry(
   direction: Direction,
   bandSet: BandSet,
   theme: Theme,
-  dpi: number
+  dpi: number,
+  style: MarkerStyle
 ): void {
   const shape = band.iconShape ?? bandSet.iconShape ?? "circle";
   const position = bandSet.iconPosition ?? "top";
@@ -69,6 +104,8 @@ function applyMarkerGeometry(
   marker.commands = buildIconStackCommands(shape, bandIndex + 1, dpi, size, position, direction);
   marker.style.fillColor = getColorString(theme.colors[bandIndex % theme.colors.length]);
   marker.style.strokeWidth = dpi * getStrokeWidthRatio(shape);
+  marker.style.fillOpacity = markerOpacity(style);
+  marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(style);
   marker.position = computeIconAnchor(token, dpi, position, iconDistance);
   marker.visible = token.visible;
   marker.name = `Daggerheight: ${band.name} (${direction})`;
@@ -82,7 +119,8 @@ function buildTokenHeightMarker(
   direction: Direction,
   bandSet: BandSet,
   theme: Theme,
-  dpi: number
+  dpi: number,
+  style: MarkerStyle
 ): Path {
   const shape = band.iconShape ?? bandSet.iconShape ?? "circle";
   const position = bandSet.iconPosition ?? "top";
@@ -93,9 +131,9 @@ function buildTokenHeightMarker(
   const item = buildPath()
     .commands(commands)
     .fillColor(color)
-    .fillOpacity(1)
+    .fillOpacity(markerOpacity(style))
     .strokeColor("#111827")
-    .strokeOpacity(0.65)
+    .strokeOpacity(MARKER_STROKE_OPACITY * markerOpacity(style))
     .strokeWidth(dpi * getStrokeWidthRatio(shape))
     .position(computeIconAnchor(token, dpi, position, iconDistance))
     .attachedTo(token.id)
@@ -118,7 +156,7 @@ function buildTokenHeightMarker(
 // stale height. Mutating leaves one stable item identity across the whole
 // drag, so there's nothing left for a late write to race against.
 //
-// knownBandSet/knownDpi let a caller that already has both cached (the
+// knownBandSet/knownDpi/knownStyle let a caller that already has all three cached (the
 // Medición tool, for the whole duration of a drag) skip re-fetching them —
 // every OBR.scene.* call is a real postMessage round trip with its own 5s
 // timeout (no local caching in the SDK itself), and cutting two of those
@@ -146,15 +184,16 @@ export async function setTokenHeightMarker(
   direction: Direction,
   knownBandSet?: BandSet,
   knownDpi?: number,
-  knownExisting?: Path[]
+  knownExisting?: Path[],
+  knownStyle?: MarkerStyle
 ): Promise<Path[]> {
   if (tokens.length === 0) {
     return [];
   }
-  const [bandSet, dpi] =
-    knownBandSet !== undefined && knownDpi !== undefined
-      ? [knownBandSet, knownDpi]
-      : await Promise.all([getActiveBandSet(), OBR.scene.grid.getDpi()]);
+  const [{ bandSet, style }, dpi] =
+    knownBandSet !== undefined && knownDpi !== undefined && knownStyle !== undefined
+      ? [{ bandSet: knownBandSet, style: knownStyle }, knownDpi]
+      : await Promise.all([getActiveMarkerConfig(), OBR.scene.grid.getDpi()]);
   const bandIndex = bandSet.bands.findIndex((band) => band.id === bandId);
   const band = bandSet.bands[bandIndex];
   if (!band) {
@@ -184,7 +223,7 @@ export async function setTokenHeightMarker(
           if (!token) {
             continue;
           }
-          applyMarkerGeometry(marker, token, band, bandIndex, direction, bandSet, theme, dpi);
+          applyMarkerGeometry(marker, token, band, bandIndex, direction, bandSet, theme, dpi, style);
         }
       }
     );
@@ -192,7 +231,9 @@ export async function setTokenHeightMarker(
 
   const newMarkers = tokens
     .filter((token) => !tokensWithExisting.has(token.id))
-    .map((token) => buildTokenHeightMarker(token, band, bandIndex, direction, bandSet, theme, dpi));
+    .map((token) =>
+      buildTokenHeightMarker(token, band, bandIndex, direction, bandSet, theme, dpi, style)
+    );
   if (newMarkers.length > 0) {
     await OBR.scene.items.addItems(newMarkers);
   }
@@ -237,8 +278,8 @@ export async function clearAllTokenHeightMarkers(): Promise<void> {
  * for every connected client instead of just updating smoothly.
  */
 export async function refreshAllTokenHeightMarkers(): Promise<void> {
-  const [bandSet, dpi, markers] = await Promise.all([
-    getActiveBandSet(),
+  const [{ bandSet, style }, dpi, markers] = await Promise.all([
+    getActiveMarkerConfig(),
     OBR.scene.grid.getDpi(),
     getAllTokenHeightMarkers(),
   ]);
@@ -254,22 +295,39 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
   );
   const tokenById = new Map(tokens.map((token) => [token.id, token]));
 
-  await OBR.scene.items.updateItems(isTokenHeightMarker, (draft) => {
+  // Derived on copies first, so only the markers that actually come out
+  // different get written — most refreshes change nothing, and every write
+  // counts against Owlbear's rate limit ("Too many requests").
+  const apply = (marker: Path) => {
+    const state = getTokenHeightState(marker);
+    const token = marker.attachedTo ? tokenById.get(marker.attachedTo) : undefined;
+    if (!state || !token) {
+      return;
+    }
+    const bandIndex = bandSet.bands.findIndex((band) => band.id === state.bandId);
+    const band = bandSet.bands[bandIndex];
+    // The band this marker points to was deleted — leave the marker as-is
+    // rather than deleting it, so a temporary Bandas edit doesn't silently
+    // wipe markers a GM already placed.
+    if (!band) {
+      return;
+    }
+    applyMarkerGeometry(marker, token, band, bandIndex, state.direction, bandSet, theme, dpi, style);
+  };
+  const changedIds = markers
+    .filter((marker) => {
+      const next = structuredClone(marker);
+      apply(next);
+      return !deepEqual(next, marker);
+    })
+    .map((marker) => marker.id);
+  if (changedIds.length === 0) {
+    return;
+  }
+
+  await OBR.scene.items.updateItems<Path>(changedIds, (draft) => {
     for (const marker of draft) {
-      const state = getTokenHeightState(marker);
-      const token = marker.attachedTo ? tokenById.get(marker.attachedTo) : undefined;
-      if (!state || !token) {
-        continue;
-      }
-      const bandIndex = bandSet.bands.findIndex((band) => band.id === state.bandId);
-      const band = bandSet.bands[bandIndex];
-      // The band this marker points to was deleted — leave the marker as-is
-      // rather than deleting it, so a temporary Bandas edit doesn't silently
-      // wipe markers a GM already placed.
-      if (!band) {
-        continue;
-      }
-      applyMarkerGeometry(marker, token, band, bandIndex, state.direction, bandSet, theme, dpi);
+      apply(marker);
     }
   });
 }

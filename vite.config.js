@@ -13,6 +13,7 @@ export default defineConfig({
         theme: resolve(__dirname, "theme.html"),
         settings: resolve(__dirname, "settings.html"),
         tokenHeight: resolve(__dirname, "token-height.html"),
+        distances: resolve(__dirname, "distances.html"),
       },
     },
   },

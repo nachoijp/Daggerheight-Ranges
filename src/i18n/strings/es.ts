@@ -13,6 +13,7 @@ const es = {
   "toolbar.colorTheme": "Tema de color",
   "toolbar.raiseHeight": "Subir altura",
   "toolbar.lowerHeight": "Bajar altura",
+  "toolbar.distancias": "Distancias",
 
   "settings.tab.bandas": "Bandas",
   "settings.tab.medicion": "Medición",
@@ -114,6 +115,9 @@ const es = {
   "settings.global.enableLecturasToggle": "Mostrar Lecturas en cada token medido",
   "settings.global.enableLecturasTooltip":
     "Si lo apagás, la herramienta de Medición sigue funcionando igual (los anillos y el degradado alrededor del Origen se siguen viendo), pero deja de mostrar una Lectura (ícono/anillo/círculo + etiqueta) en cada token medido — queda el comportamiento básico de Ranges, sin lecturas por token. Se aplica en la próxima Medición, sin recargar la sala.",
+  "settings.global.lecturaDistanceToggle": "Mostrar la distancia exacta en la etiqueta",
+  "settings.global.lecturaDistanceTooltip":
+    "Agrega la distancia de cada token (en la unidad de la grilla, redondeada a casilleros enteros) a la etiqueta de su Lectura, por ejemplo \"Cerca · 15ft\". Cuenta la altura y el tamaño de los tokens. Se aplica en la próxima Medición.",
   "settings.global.enableAltitude": "Altura",
   "settings.global.enableAltitudeToggle": "Habilitar la función de altura",
   "settings.global.enableAltitudeTooltip":
@@ -122,6 +126,18 @@ const es = {
   "settings.global.altitudeMenuToggle": "Mostrar la opción \"Altura\" en el menú contextual",
   "settings.global.altitudeMenuTooltip":
     "Si lo apagás, la única forma de cambiar la altura de un token es con las hotkeys (Medición o, si están activas, las globales). Requiere recargar la sala.",
+  "settings.global.markerStyle": "Estilo del marcador",
+  "settings.global.markerStyleTooltip":
+    "Cómo se ve la altura de cada token, para todos: con los íconos apilados, con una etiqueta con la altura exacta (por ejemplo \"⬆️ 30ft\") o con ambos. Se aplica al instante, sin recargar la sala.",
+  "settings.global.markerStyleIcons": "Íconos",
+  "settings.global.markerStyleLabel": "Etiqueta",
+  "settings.global.markerStyleBoth": "Ambos",
+  "settings.global.distancePanel": "Panel de distancias",
+  "settings.global.distancePanelTooltip":
+    "Un botón en la barra de Medición que abre una lista con la distancia, la Banda y la diferencia de altura desde un token hacia todos los demás. Los jugadores nunca ven tokens ocultos. Mostrar u ocultar el botón requiere recargar la sala.",
+  "settings.global.distancePanelOff": "Apagado",
+  "settings.global.distancePanelGm": "Solo GM",
+  "settings.global.distancePanelEveryone": "Todos",
 
   "tokenHeight.selectToken": "Seleccioná un token.",
   "tokenHeight.up": "Arriba",
@@ -129,6 +145,28 @@ const es = {
 
   "onMap.ground": "Suelo",
   "onMap.outOfRange": "Fuera de rango",
+
+  "distances.disabled": "El GM desactivó el panel de distancias.",
+  "distances.origin": "Medir desde",
+  "distances.pickToken": "Elegí o seleccioná un token",
+  "distances.noOtherTokens": "No hay otros tokens en la escena.",
+  "distances.tableLabel": "Distancias desde {name}",
+  "distances.token": "Token",
+  "distances.band": "Banda",
+  "distances.distance": "Distancia",
+  "distances.horizontal": "Horiz.",
+  "distances.horizontalTooltip":
+    "Distancia sobre el suelo, sin contar la altura, medida según el modo de cálculo (cúbico cuenta las diagonales como rectas). Descuenta el tamaño extra de los tokens grandes.",
+  "distances.vertical": "Vert.",
+  "distances.verticalTooltip":
+    "Diferencia de altura: ↑ si el token está más arriba que el origen, ↓ si está más abajo.",
+  "distances.total": "Total",
+  "distances.totalTooltip":
+    "La distancia completa, combinando horizontal y vertical según el modo de cálculo. Es la que decide la Banda y la misma que muestra la Lectura.",
+  "distances.sameHeight": "Misma altura",
+  "distances.close": "Cerrar",
+  "distances.above": "{distance} más arriba",
+  "distances.below": "{distance} más abajo",
 
   "theme.storageUnavailable": "El almacenamiento no está disponible",
   "theme.storageUnavailableBody":

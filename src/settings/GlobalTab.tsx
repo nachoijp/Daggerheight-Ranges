@@ -5,6 +5,8 @@ import FormControlLabel from "@mui/material/FormControlLabel";
 import Switch from "@mui/material/Switch";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Tooltip from "@mui/material/Tooltip";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import { FieldLabel } from "./FieldLabel";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import { useOBRContext } from "./OBRContext";
@@ -14,7 +16,9 @@ import {
   DEFAULT_GLOBAL_SETTINGS,
   getGlobalSettings,
   setGlobalSettings,
+  type DistancePanelAccess,
   type GlobalSettings,
+  type MarkerStyle,
 } from "./globalSettings";
 import { clearAllTokenHeightMarkers } from "../tokenHeight/markers";
 
@@ -91,6 +95,25 @@ export function GlobalTab() {
           }
           label={t("settings.global.enableLecturasToggle")}
         />
+        {(settings.enableLecturas ?? true) && (
+          <Stack direction="row" alignItems="center">
+            <FormControlLabel
+              control={
+                <Switch
+                  sx={{ overflow: "visible" }}
+                  checked={settings.showLecturaDistance ?? false}
+                  onChange={(_, checked) =>
+                    updateSettings({ ...settings, showLecturaDistance: checked })
+                  }
+                />
+              }
+              label={t("settings.global.lecturaDistanceToggle")}
+            />
+            <Tooltip title={t("settings.global.lecturaDistanceTooltip")}>
+              <InfoOutlined sx={{ fontSize: 14, opacity: 0.6 }} />
+            </Tooltip>
+          </Stack>
+        )}
       </Stack>
 
       <Divider />
@@ -157,8 +180,56 @@ export function GlobalTab() {
               label={t("settings.global.altitudeMenuToggle")}
             />
           </Stack>
+
+          <Divider />
+          <Stack sx={{ px: 1 }}>
+            <FieldLabel id="marker-style-label" tooltip={t("settings.global.markerStyleTooltip")}>
+              {t("settings.global.markerStyle")}
+            </FieldLabel>
+            <ToggleButtonGroup
+              value={settings.markerStyle ?? "icons"}
+              onChange={(_, value: MarkerStyle | null) => {
+                if (value) {
+                  updateSettings({ ...settings, markerStyle: value });
+                }
+              }}
+              exclusive
+              aria-labelledby="marker-style-label"
+              size="small"
+              fullWidth
+              sx={{ my: 0.5 }}
+            >
+              <ToggleButton value="icons">{t("settings.global.markerStyleIcons")}</ToggleButton>
+              <ToggleButton value="label">{t("settings.global.markerStyleLabel")}</ToggleButton>
+              <ToggleButton value="both">{t("settings.global.markerStyleBoth")}</ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
         </>
       )}
+
+      <Divider />
+      <Stack sx={{ px: 1, pb: 1 }}>
+        <FieldLabel id="distance-panel-label" tooltip={t("settings.global.distancePanelTooltip")}>
+          {t("settings.global.distancePanel")}
+        </FieldLabel>
+        <ToggleButtonGroup
+          value={settings.distancePanel ?? "off"}
+          onChange={(_, value: DistancePanelAccess | null) => {
+            if (value) {
+              updateSettings({ ...settings, distancePanel: value });
+            }
+          }}
+          exclusive
+          aria-labelledby="distance-panel-label"
+          size="small"
+          fullWidth
+          sx={{ my: 0.5 }}
+        >
+          <ToggleButton value="off">{t("settings.global.distancePanelOff")}</ToggleButton>
+          <ToggleButton value="gm">{t("settings.global.distancePanelGm")}</ToggleButton>
+          <ToggleButton value="everyone">{t("settings.global.distancePanelEveryone")}</ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
     </Stack>
   );
 }

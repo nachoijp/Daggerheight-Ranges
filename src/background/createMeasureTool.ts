@@ -38,17 +38,19 @@ import {
   distance3D,
   effectiveDistance,
   excessRadius,
+  shownDistance,
 } from "../engine/distance";
 import { findBand } from "../engine/bands";
 import { Band, BandSet } from "../engine/types";
 import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
 import { flattenGridScale } from "../util/flattenGridScale";
-import { getTokenBounds } from "../render/iconAnchor";
+import { getTokenRadius } from "../render/iconAnchor";
 import {
   clearTokenHeightMarker,
   getAllTokenHeightMarkers,
   getTokenHeightState,
   setTokenHeightMarker,
+  tokenHeightsFromMarkers,
   type TokenHeightState,
 } from "../tokenHeight/markers";
 import { DEFAULT_LANGUAGE, languageFromMetadata, type Language } from "../i18n/language";
@@ -58,6 +60,7 @@ import {
   globalSettingsFromMetadata,
   letterToCode,
   type GlobalSettings,
+  type MarkerStyle,
 } from "../settings/globalSettings";
 
 type OriginMarkerRequest = {
@@ -65,6 +68,7 @@ type OriginMarkerRequest = {
   ref: TokenHeightState | undefined;
   bandSet: BandSet;
   dpi: number;
+  style: MarkerStyle;
   attempt: number;
 };
 
@@ -101,10 +105,18 @@ let originMarkerBeforeEdit: TokenHeightState | undefined;
 // getting confirmation; trusting a stale "no marker" guess in that case
 // could addItems a real duplicate instead of updateItems-ing the one that's
 // already there. Only ever trust the cache right after a confirmed success.
-let originMarkerKnownExisting: Path[] | undefined;
+// Keyed by token: a released Medición's marker write lands after the next
+// Medición may have started on another token (see releaseMedicion), and a
+// cache meant for one token read for another said "no marker" and added a
+// duplicate.
+let originMarkerCache: { tokenId: string; markers: Path[] } | undefined;
+// Bumped as each marker write starts. onToolDown seeds the cache from a
+// marker list it fetched earlier; if any write started since, that list may
+// already be stale, so the cache is left empty (look it up fresh) instead.
+let originMarkerWrites = 0;
 // downTarget itself is a snapshot taken once at onToolDown and never
 // mutated, so its .position goes stale the moment a drag starts (the real
-// position only updates on release, via finalizeMove). Track the live
+// position only updates on release, via saveTokenPosition). Track the live
 // dragged position separately so a marker written mid-drag anchors to where
 // the token actually is on screen, not where it started.
 let liveTokenPosition: Vector2 | null = null;
@@ -136,7 +148,7 @@ let activeBandSet: BandSet | null = null;
 let activeLanguage: Language = DEFAULT_LANGUAGE;
 let activeHotkeys: GlobalSettings = DEFAULT_GLOBAL_SETTINGS;
 // Mirrors activeHotkeys.enableAltitude (missing = true) — read fresh from
-// module state elsewhere (onKeyDown, restoreOriginMarker, finalizeMove)
+// module state elsewhere (onKeyDown, releaseMedicion, cancelMedicion)
 // rather than off the GlobalSettings object directly, so the whole altitude
 // feature — Z/X, the height label, marker seeding/writes — turns off
 // together instead of each call site defaulting it separately.
@@ -147,6 +159,11 @@ let activeAltitudeEnabled = true;
 // skipped, leaving plain Ranges-style distance rings with no per-token
 // readings.
 let activeLecturasEnabled = true;
+// Mirrors activeHotkeys.showLecturaDistance (missing = false).
+let activeShowDistance = false;
+// Mirrors activeHotkeys.markerStyle (missing = "icons"): the grabbed token's
+// marker writes need it, and it's already in hand from onToolDown's fetch.
+let activeMarkerStyle: MarkerStyle = "icons";
 let activeDpi = 0;
 // The Origen's own footprint radius (grid units), 0 for a free-point
 // Medición. Only its excess over a standard 1-grid-unit token (see
@@ -194,7 +211,7 @@ let refreshScheduled = false;
 // The latest token-drag move, still waiting on its snapPosition round trip.
 // Releasing right after a move used to read the token's position before that
 // reply came back, so the token landed one (or, on a fast flick, every) step
-// behind where it was dropped; finalizeMove waits for it first. Replies come
+// behind where it was dropped; releaseMedicion waits for it first. Replies come
 // back in order, so the latest one being done means every earlier one is too.
 // Never rejects (a failed snap just keeps the previous position).
 let pendingMove: Promise<void> | null = null;
@@ -421,32 +438,26 @@ function getBandItems(
 }
 
 /**
- * Half the token's larger on-screen dimension, in grid units — how big
- * Tolerancia treats the token as being. Reuses the same footprint math the
- * icon anchor/ring/circle sizing already does (accounts for the token's
- * real image size, grid offset, and scale), so a Large/Huge creature
- * actually needs more of itself in range than a 1×1 token, instead of
- * everyone being measured as if they were the same fixed half-square.
+ * `matched` is the tolerance-adjusted distance Bandas are matched against,
+ * shared by getLecturaBandIndex and the Filtro check so both agree on "how
+ * far is this token"; `shown` is the one the Lectura's number displays.
  */
-function getTokenRadius(token: Image, dpi: number): number {
-  const { scaledWidth, scaledHeight } = getTokenBounds(token, dpi);
-  return Math.max(scaledWidth, scaledHeight) / dpi / 2;
-}
-
-/** Same tolerance-adjusted distance Bandas are matched against, shared by getLecturaBandIndex and the Filtro check so both agree on "how far is this token". */
 function getLecturaDistance(
   tokenPosition: Vector2,
   dpi: number,
   height: number,
   bandSet: BandSet,
   tokenRadius: number
-): number {
+): { matched: number; shown: number } {
   const dx = (tokenPosition.x - activeLecturaCenter.x) / dpi;
   const dy = (tokenPosition.y - activeLecturaCenter.y) / dpi;
   const centerDistance = distance3D(dx, dy, height, bandSet.metric);
   const tolerance = (bandSet.tolerance ?? DEFAULT_TOLERANCE) / 100;
   const excessRadiusSum = excessRadius(activeOriginRadius) + excessRadius(tokenRadius);
-  return effectiveDistance(centerDistance, excessRadiusSum, tolerance);
+  return {
+    matched: effectiveDistance(centerDistance, excessRadiusSum, tolerance),
+    shown: shownDistance(centerDistance, excessRadiusSum),
+  };
 }
 
 /** Index into bandSet.bands of the Banda a token is currently in, or undefined if out of range. */
@@ -535,19 +546,24 @@ const ORIGIN_MARKER_RETRY_DELAY_MS = 200;
  * attempt.
  */
 async function writeOriginMarker(request: OriginMarkerRequest): Promise<boolean> {
+  const tokenId = request.token.id;
+  const known = originMarkerCache?.tokenId === tokenId ? originMarkerCache.markers : undefined;
+  originMarkerWrites++;
   try {
     if (request.ref) {
-      originMarkerKnownExisting = await setTokenHeightMarker(
+      const markers = await setTokenHeightMarker(
         [request.token],
         request.ref.bandId,
         request.ref.direction,
         request.bandSet,
         request.dpi,
-        originMarkerKnownExisting
+        known,
+        request.style
       );
+      originMarkerCache = { tokenId, markers };
     } else {
-      await clearTokenHeightMarker([request.token.id], originMarkerKnownExisting);
-      originMarkerKnownExisting = [];
+      await clearTokenHeightMarker([tokenId], known);
+      originMarkerCache = { tokenId, markers: [] };
     }
     return true;
   } catch (err) {
@@ -555,7 +571,7 @@ async function writeOriginMarker(request: OriginMarkerRequest): Promise<boolean>
     // The write may have actually landed server-side despite this client
     // not getting confirmation — forget the cache rather than risk the next
     // attempt trusting a stale "no marker" guess and creating a duplicate.
-    originMarkerKnownExisting = undefined;
+    originMarkerCache = undefined;
     return false;
   }
 }
@@ -571,14 +587,36 @@ async function writeOriginMarker(request: OriginMarkerRequest): Promise<boolean>
  * scene-write RPC per keypress — this keeps at most one write in flight
  * plus one trailing write, and whichever press was actually last always
  * wins. Returns the same promise every caller in a coalesced batch shares,
- * so finalizeMove()/restoreOriginMarker() can await "everything settles".
+ * so releaseMedicion()/restoreOriginMarker() can await "everything settles".
  */
 function scheduleOriginMarkerSync(ref: TokenHeightState | undefined): Promise<void> {
-  const token = liveDownTargetImage();
-  if (!token || !activeBandSet) {
+  return enqueueOriginMarkerWrite(originMarkerRequest(ref));
+}
+
+/**
+ * A marker write for the grabbed token, built from this Medición's state
+ * right now — so it can be built before cleanup() resets that state and
+ * written after (see releaseMedicion). null when no token is grabbed.
+ * `position` anchors it where the token actually ends up, when that's not
+ * its live dragged position (a cancelled or unsaved drag goes back).
+ */
+function originMarkerRequest(
+  ref: TokenHeightState | undefined,
+  position?: Vector2
+): OriginMarkerRequest | null {
+  const live = liveDownTargetImage();
+  if (!live || !activeBandSet) {
+    return null;
+  }
+  const token = position ? { ...live, position } : live;
+  return { token, ref, bandSet: activeBandSet, dpi: activeDpi, style: activeMarkerStyle, attempt: 0 };
+}
+
+function enqueueOriginMarkerWrite(request: OriginMarkerRequest | null): Promise<void> {
+  if (!request) {
     return originMarkerSyncTail;
   }
-  originMarkerSyncLatest = { token, ref, bandSet: activeBandSet, dpi: activeDpi, attempt: 0 };
+  originMarkerSyncLatest = request;
   if (originMarkerSyncPending) {
     // A write is already in flight (or about to drain originMarkerSyncLatest
     // again) — this press's request was just recorded above, so there's
@@ -613,39 +651,42 @@ function scheduleOriginMarkerSync(ref: TokenHeightState | undefined): Promise<vo
   return originMarkerSyncTail;
 }
 
-/** Undoes any scheduleOriginMarkerSync() writes when a drag is cancelled instead of released. */
-async function restoreOriginMarker() {
-  const token = liveDownTargetImage();
-  if (!token || !activeBandSet || !activeAltitudeEnabled) {
+/**
+ * Undoes any scheduleOriginMarkerSync() writes when a drag is cancelled
+ * instead of released. The request is built from this Medición's state, so
+ * it's taken before cleanup() and passed in.
+ */
+async function restoreOriginMarker(request: OriginMarkerRequest | null) {
+  if (!request) {
     return;
   }
   // Let anything already scheduled land first, so it can't race in after
   // (and overwrite) the restore below with a stale in-progress height.
   await originMarkerSyncTail;
-  await writeOriginMarker({
-    token,
-    ref: originMarkerBeforeEdit,
-    bandSet: activeBandSet,
-    dpi: activeDpi,
-    attempt: 0,
-  });
+  await writeOriginMarker(request);
 }
 
 /** One token's Lectura, as the measuring client computes it — every client draws it from this. */
 function computeLecturaState(token: Image, bandSet: BandSet): LecturaState {
   const dz = tokenDz(token);
-  const distance = getLecturaDistance(
+  const { matched, shown } = getLecturaDistance(
     token.position,
     activeDpi,
     dz,
     bandSet,
     getTokenRadius(token, activeDpi)
   );
-  return {
-    index: getLecturaBandIndex(distance, bandSet) ?? null,
-    withinFilter: isWithinFilter(distance, bandSet),
+  const state: LecturaState = {
+    index: getLecturaBandIndex(matched, bandSet) ?? null,
+    withinFilter: isWithinFilter(matched, bandSet),
     dz,
   };
+  // Rounded here, not just when drawn: sameLecturaState compares it, so a
+  // Lectura is only redrawn (and re-broadcast) when the shown number changes.
+  if (activeShowDistance) {
+    state.distance = Math.round(shown);
+  }
+  return state;
 }
 
 // Only the band rings/labels live in the interaction now — it only ever
@@ -737,39 +778,100 @@ function cleanup() {
   pendingPointerPosition = null;
   pendingLecturaPosition = null;
   originMarkerBeforeEdit = undefined;
-  originMarkerKnownExisting = undefined;
+  originMarkerCache = undefined;
   liveTokenPosition = null;
   pendingMove = null;
 }
 
-async function finalizeMove() {
-  const interaction = tokenInteraction;
-  if (interaction) {
-    if (pendingMove) {
-      await pendingMove;
-    }
-    const final = interaction[0](() => {});
-    const withAttachments = await OBR.scene.items.getItemAttachments([
-      final.id,
-    ]);
-    withAttachments.sort((a, b) => a.zIndex - b.zIndex);
-    await OBR.scene.items.updateItems(withAttachments, (items) => {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.id === final.id) {
-          item.position = final.position;
+// Owlbear answers a burst of scene writes with "Too many requests"
+// (RateLimitHit, seen live 2026-10-08 on fast token drags). Waits grow, so a
+// short limit costs little and a longer one still gets a few chances.
+const SAVE_RETRY_DELAYS_MS = [50, 100, 200];
+
+/**
+ * Writes the dragged token's final position (and bumps it and its
+ * attachments to the top), retrying a rejected write. The interaction keeps
+ * showing the token where it was dropped until then, and is always ended
+ * here — if every attempt fails, the token goes back where it started, as
+ * with a cancelled drag. Returns where the token landed, or null if it
+ * went back.
+ */
+async function saveTokenPosition(interaction: InteractionManager<Item>): Promise<Vector2 | null> {
+  const final = interaction[0](() => {});
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const withAttachments = await OBR.scene.items.getItemAttachments([final.id]);
+        withAttachments.sort((a, b) => a.zIndex - b.zIndex);
+        await OBR.scene.items.updateItems(withAttachments, (items) => {
+          for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.id === final.id) {
+              item.position = final.position;
+            }
+            if (!item.disableAutoZIndex) {
+              item.zIndex = Date.now() + i;
+            }
+          }
+        });
+        return final.position;
+      } catch (error) {
+        if (attempt >= SAVE_RETRY_DELAYS_MS.length) {
+          console.error("Daggerheight: failed to save the dragged token's position", error);
+          return null;
         }
-        if (!item.disableAutoZIndex) {
-          item.zIndex = Date.now() + i;
-        }
+        await new Promise((resolve) => setTimeout(resolve, SAVE_RETRY_DELAYS_MS[attempt]));
       }
-    });
+    }
+  } finally {
+    interaction[1]();
   }
-  // Ensures the final height actually lands even if the last keypress's
-  // coalesced write is still pending/in flight when the drag is released.
-  if (activeAltitudeEnabled) {
-    await scheduleOriginMarkerSync(currentOriginBandRef());
+}
+
+/**
+ * Ends a Medición that was released (not cancelled). Everything on screen
+ * — rings, gradient, Lecturas, height label — goes right away; the scene
+ * writes it leaves behind (the token's new position, then its height
+ * marker, in that order, like before) carry on afterwards on their own.
+ * They used to run first, so one rejected write skipped cleanup() and left
+ * the whole Medición stuck on screen until the next one. Everything those
+ * writes need is taken out of the module state before cleanup() resets it,
+ * so a new Medición starting meanwhile can't change or cancel them.
+ */
+async function releaseMedicion() {
+  // Taken before the wait below: a new Medición starting meanwhile runs
+  // cleanup(), which would otherwise cancel this drag (sending the token
+  // back) and reset the state the marker write is built from.
+  const interaction = tokenInteraction;
+  tokenInteraction = null;
+  const startPosition = downTarget?.position;
+  const markerRequest = activeAltitudeEnabled ? originMarkerRequest(currentOriginBandRef()) : null;
+  const generation = toolDownGeneration;
+  // The latest snapped drag position, so the token lands where it was dropped.
+  if (pendingMove) {
+    await pendingMove;
   }
+  // Unless a new Medición started meanwhile: its own cleanup() already
+  // ended this one, and cleaning up again now would end the new one instead.
+  if (generation === toolDownGeneration) {
+    cleanup();
+  }
+  const landed = interaction ? await saveTokenPosition(interaction) : null;
+  // The marker goes wherever the token really ended up: where it was
+  // dropped if that was saved, back at the start otherwise.
+  const position = landed ?? startPosition;
+  await enqueueOriginMarkerWrite(
+    markerRequest && position ? { ...markerRequest, token: { ...markerRequest.token, position } } : markerRequest
+  );
+}
+
+/** Ends a cancelled Medición: the same immediate cleanup, then the grabbed token's marker goes back to how it was — and where the token goes back to. */
+async function cancelMedicion() {
+  const restore = activeAltitudeEnabled
+    ? originMarkerRequest(originMarkerBeforeEdit, downTarget?.position)
+    : null;
+  cleanup();
+  await restoreOriginMarker(restore);
 }
 
 export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
@@ -817,6 +919,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
               }
             })
           : Promise.resolve();
+      const writesBeforeFetch = originMarkerWrites;
       const [sceneMetadata, dpi, gridScale, characterImages, allHeightMarkers] = await Promise.all([
         OBR.scene.getMetadata(),
         OBR.scene.grid.getDpi(),
@@ -846,6 +949,8 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       activeHotkeys = globalSettingsFromMetadata(sceneMetadata);
       activeAltitudeEnabled = activeHotkeys.enableAltitude ?? true;
       activeLecturasEnabled = activeHotkeys.enableLecturas ?? true;
+      activeShowDistance = activeHotkeys.showLecturaDistance ?? false;
+      activeMarkerStyle = activeHotkeys.markerStyle ?? "icons";
       activeDpi = dpi;
       activeOriginRadius =
         downTarget && isImage(downTarget) ? getTokenRadius(downTarget, dpi) : 0;
@@ -860,17 +965,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       const tokens = characterImages.filter((item) => item.id !== downTarget?.id);
       const heightMarkers = activeAltitudeEnabled ? allHeightMarkers : [];
       activeTokens = tokens;
-      activeTokenHeights = new Map();
-      for (const marker of heightMarkers) {
-        const state = marker.attachedTo && getTokenHeightState(marker);
-        const band = state && bandSet.bands.find((b) => b.id === state.bandId);
-        if (marker.attachedTo && state && band) {
-          activeTokenHeights.set(
-            marker.attachedTo,
-            state.direction === "up" ? band.radius : -band.radius
-          );
-        }
-      }
+      activeTokenHeights = tokenHeightsFromMarkers(heightMarkers, bandSet);
 
       // If the click landed on a token that already has its own height
       // marker, start the Medición at that height instead of always
@@ -887,12 +982,12 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         // click never gets its marker written back by scheduleOriginMarkerSync().
         originMarkerBeforeEdit = downTarget ? originState || undefined : undefined;
         // Seeds writeOriginMarker's cache from the same marker list already
-        // fetched above — no extra round trip.
-        originMarkerKnownExisting = downTarget
-          ? originMarker
-            ? [originMarker]
-            : []
-          : undefined;
+        // fetched above — no extra round trip — unless a marker write has
+        // started since that fetch went out.
+        originMarkerCache =
+          downTarget && writesBeforeFetch === originMarkerWrites
+            ? { tokenId: downTarget.id, markers: originMarker ? [originMarker] : [] }
+            : undefined;
         if (originState) {
           const sortedIndex = sortedBands.findIndex((b) => b.id === originState.bandId);
           if (sortedIndex !== -1) {
@@ -901,7 +996,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         }
       } else {
         originMarkerBeforeEdit = undefined;
-        originMarkerKnownExisting = undefined;
+        originMarkerCache = undefined;
       }
       if (generation !== toolDownGeneration) {
         return;
@@ -924,7 +1019,14 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         mirrorEnd();
       }, REMOTE_SYNC_CUTOFF_MS);
 
-      const ctx: LecturaContext = { bandSet, theme, dpi, language };
+      const ctx: LecturaContext = {
+        bandSet,
+        theme,
+        dpi,
+        language,
+        gridScale,
+        showDistance: activeShowDistance,
+      };
       activeLecturaStates = new Map();
       if (activeLecturasEnabled) {
         for (const token of activeTokens) {
@@ -1008,29 +1110,20 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         scheduleOriginMarkerSync(currentOriginBandRef());
       }
     },
+    // The marker writes these leave behind are built from this Medición's
+    // state before cleanup() resets it (see releaseMedicion) — reading it
+    // after an await used to find it already reset and silently skip them.
     async onToolDragEnd() {
-      // cleanup() nulls downTarget/activeBandSet/bandIndex — it has to run
-      // after finalizeMove() actually finishes, not just after it's called,
-      // or finalizeMove()'s own trailing marker-sync call (itself after an
-      // earlier await) ends up reading state cleanup() already reset,
-      // silently doing nothing. Without this, releasing right as a marker
-      // write was still catching up could leave the persisted marker one
-      // step behind — and re-grabbing the token immediately after seeds the
-      // new ephemeral label from that stale marker.
-      await finalizeMove();
-      cleanup();
+      await releaseMedicion();
     },
     async onToolDragCancel() {
-      await restoreOriginMarker();
-      cleanup();
+      await cancelMedicion();
     },
     async onDeactivate() {
-      await restoreOriginMarker();
-      cleanup();
+      await cancelMedicion();
     },
     async onToolUp() {
-      await finalizeMove();
-      cleanup();
+      await releaseMedicion();
     },
     shortcut: hotkeys.hotkeyActivate,
     cursors: [

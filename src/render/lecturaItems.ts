@@ -6,6 +6,7 @@ import {
   isPath,
   isShape,
   Math2,
+  type GridScale,
   type Image,
   type Item,
   type Vector2,
@@ -19,6 +20,7 @@ import { buildIconStackCommands, getStrokeWidthRatio, type Direction } from "./i
 import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "./iconAnchor";
 import { type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
+import { formatDistance } from "../util/flattenGridScale";
 
 // Everything needed to draw a Lectura, independent of which client is
 // drawing it. The measuring client computes each token's LecturaState (the
@@ -33,6 +35,9 @@ export type LecturaContext = {
   theme: Theme;
   dpi: number;
   language: Language;
+  /** Optional: a measuring client from before the Lectura distance existed doesn't send them. */
+  gridScale?: GridScale;
+  showDistance?: boolean;
 };
 
 /** JSON-safe (it's broadcast): null, not undefined, for "out of range". */
@@ -42,6 +47,8 @@ export type LecturaState = {
   withinFilter: boolean;
   /** Origen height - token height, grid units (see tokenDz). */
   dz: number;
+  /** Shown distance, whole grid units — only set when the Lectura shows it. */
+  distance?: number;
 };
 
 export function sameLecturaState(a: LecturaState | undefined, b: LecturaState): boolean {
@@ -50,7 +57,8 @@ export function sameLecturaState(a: LecturaState | undefined, b: LecturaState): 
     !!a &&
     a.index === b.index &&
     a.withinFilter === b.withinFilter &&
-    Math.sign(a.dz) === Math.sign(b.dz)
+    Math.sign(a.dz) === Math.sign(b.dz) &&
+    a.distance === b.distance
   );
 }
 
@@ -118,12 +126,28 @@ function lecturaIconDirection(dz: number): Direction {
   return dz > 0 ? "down" : "up";
 }
 
+function showsDistance(ctx: LecturaContext): boolean {
+  return !!ctx.showDistance && !!ctx.gridScale;
+}
+
+/** Whether a Lectura gets a text label at all: its Banda name, its distance, or both. */
+function hasLecturaLabel(ctx: LecturaContext): boolean {
+  return !!ctx.bandSet.showLabel || showsDistance(ctx);
+}
+
 function getLecturaLabelText(state: LecturaState, ctx: LecturaContext): string {
-  const bandName =
-    state.index === null
-      ? translate(ctx.language, "onMap.outOfRange")
-      : ctx.bandSet.bands[state.index].name;
-  return `${bandName}${directionArrow(state.dz)}`;
+  const parts: string[] = [];
+  if (ctx.bandSet.showLabel) {
+    parts.push(
+      state.index === null
+        ? translate(ctx.language, "onMap.outOfRange")
+        : ctx.bandSet.bands[state.index].name
+    );
+  }
+  if (showsDistance(ctx) && state.distance !== undefined) {
+    parts.push(formatDistance(ctx.gridScale!, state.distance));
+  }
+  return `${parts.join(" · ")}${directionArrow(state.dz)}`;
 }
 
 function lecturaColorFor(index: number | null, theme: Theme): Color {
@@ -266,7 +290,7 @@ function buildLecturaLabelItem(token: Image, state: LecturaState, ctx: LecturaCo
 
 export function buildLecturaItems(token: Image, state: LecturaState, ctx: LecturaContext): Item[] {
   const items = [buildLecturaVisualItem(token, state, ctx)];
-  if (ctx.bandSet.showLabel) {
+  if (hasLecturaLabel(ctx)) {
     items.push(buildLecturaLabelItem(token, state, ctx));
   }
   return items;

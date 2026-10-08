@@ -16,6 +16,7 @@ const en: Record<TranslationKey, string> = {
   "toolbar.colorTheme": "Color theme",
   "toolbar.raiseHeight": "Raise height",
   "toolbar.lowerHeight": "Lower height",
+  "toolbar.distancias": "Distances",
 
   "settings.tab.bandas": "Ranges",
   "settings.tab.medicion": "Measurement",
@@ -116,6 +117,9 @@ const en: Record<TranslationKey, string> = {
   "settings.global.enableLecturasToggle": "Show a Reading on each measured token",
   "settings.global.enableLecturasTooltip":
     "If off, the Measurement tool still works the same (the rings and gradient around the Origin still show), but stops showing a Reading (icon/ring/circle + label) on each measured token — leaves plain Ranges-style behavior with no per-token readings. Applies on the next Measurement, no reload needed.",
+  "settings.global.lecturaDistanceToggle": "Show the exact distance on the label",
+  "settings.global.lecturaDistanceTooltip":
+    "Adds each token's distance (in the grid's unit, rounded to whole cells) to its Reading's label, e.g. \"Close · 15ft\". Accounts for height and token size. Applies on the next Measurement.",
   "settings.global.enableAltitude": "Height",
   "settings.global.enableAltitudeToggle": "Enable the height feature",
   "settings.global.enableAltitudeTooltip":
@@ -124,6 +128,18 @@ const en: Record<TranslationKey, string> = {
   "settings.global.altitudeMenuToggle": 'Show the "Height" option in the context menu',
   "settings.global.altitudeMenuTooltip":
     "If off, the only way to change a token's height is via hotkeys (Measurement, or the global ones if enabled). Requires reloading the room.",
+  "settings.global.markerStyle": "Marker style",
+  "settings.global.markerStyleTooltip":
+    "How each token's height shows, for everyone: as the stacked icons, as a label with the exact height (e.g. \"⬆️ 30ft\"), or both. Applies instantly, no reload needed.",
+  "settings.global.markerStyleIcons": "Icons",
+  "settings.global.markerStyleLabel": "Label",
+  "settings.global.markerStyleBoth": "Both",
+  "settings.global.distancePanel": "Distances panel",
+  "settings.global.distancePanelTooltip":
+    "A button on the Measurement toolbar that opens a list with the distance, Range and height difference from one token to every other one. Players never see hidden tokens. Showing or hiding the button requires reloading the room.",
+  "settings.global.distancePanelOff": "Off",
+  "settings.global.distancePanelGm": "GM only",
+  "settings.global.distancePanelEveryone": "Everyone",
 
   "tokenHeight.selectToken": "Select a token.",
   "tokenHeight.up": "Up",
@@ -131,6 +147,28 @@ const en: Record<TranslationKey, string> = {
 
   "onMap.ground": "Ground",
   "onMap.outOfRange": "Out of range",
+
+  "distances.disabled": "The GM turned off the distances panel.",
+  "distances.origin": "Measure from",
+  "distances.pickToken": "Pick or select a token",
+  "distances.noOtherTokens": "There are no other tokens in the scene.",
+  "distances.tableLabel": "Distances from {name}",
+  "distances.token": "Token",
+  "distances.band": "Range",
+  "distances.distance": "Distance",
+  "distances.horizontal": "Horiz.",
+  "distances.horizontalTooltip":
+    "Distance along the ground, ignoring height, measured per the calculation mode (cubic counts diagonals as straight). Excludes large tokens' extra size.",
+  "distances.vertical": "Vert.",
+  "distances.verticalTooltip":
+    "Height difference: ↑ if the token is higher than the origin, ↓ if it's lower.",
+  "distances.total": "Total",
+  "distances.totalTooltip":
+    "The full distance, combining horizontal and vertical per the calculation mode. It's what decides the Range, and the same number the Reading shows.",
+  "distances.sameHeight": "Same height",
+  "distances.close": "Close",
+  "distances.above": "{distance} higher",
+  "distances.below": "{distance} lower",
 
   "theme.storageUnavailable": "Storage is not available",
   "theme.storageUnavailableBody":

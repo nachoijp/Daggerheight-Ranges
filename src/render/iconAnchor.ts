@@ -77,3 +77,16 @@ export function computeIconAnchor(
       return { x: topLeft.x - margin, y: topLeft.y + scaledHeight / 2 };
   }
 }
+
+/**
+ * Half the token's larger on-screen dimension, in grid units — how big
+ * Tolerancia treats the token as being. Reuses the same footprint math the
+ * icon anchor/ring/circle sizing already does (accounts for the token's
+ * real image size, grid offset, and scale), so a Large/Huge creature
+ * actually needs more of itself in range than a 1×1 token, instead of
+ * everyone being measured as if they were the same fixed half-square.
+ */
+export function getTokenRadius(token: Image, dpi: number): number {
+  const { scaledWidth, scaledHeight } = getTokenBounds(token, dpi);
+  return Math.max(scaledWidth, scaledHeight) / dpi / 2;
+}

@@ -30,7 +30,22 @@ export type GlobalSettings = {
    * concept at all). Optional for the same reason as enableMedicion above —
    * missing = true. */
   enableAltitude?: boolean;
+  /** Adds each token's exact distance (grid units) to its Lectura label.
+   * Lives here rather than on the BandSet so it also works with the
+   * built-in presets, whose Medición options can't be edited. Missing =
+   * false, like every display option below. */
+  showLecturaDistance?: boolean;
+  /** How a persistent height marker shows: its icon stack, a "⬆️ 30ft"
+   * label, or both. In "label" the marker item stays (it's what stores the
+   * height) but is drawn fully transparent. Missing = "icons". */
+  markerStyle?: MarkerStyle;
+  /** Who gets the Distancias panel's toolbar button. Registered once at
+   * load, like the Altura menu, so a change needs a room reload. */
+  distancePanel?: DistancePanelAccess;
 };
+
+export type DistancePanelAccess = "off" | "gm" | "everyone";
+export type MarkerStyle = "icons" | "label" | "both";
 
 export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   hotkeyActivate: "O",
@@ -39,7 +54,12 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   showAltitudeMenu: true,
   enableLecturas: true,
   enableAltitude: true,
+  showLecturaDistance: false,
+  markerStyle: "icons",
+  distancePanel: "off",
 };
+
+const optionalBoolean = (value: unknown) => value === undefined || typeof value === "boolean";
 
 const METADATA_KEY = getPluginId("globalSettings");
 
@@ -54,8 +74,17 @@ function isGlobalSettings(value: unknown): value is GlobalSettings {
     isLetter(value.hotkeyRaise) &&
     isLetter(value.hotkeyLower) &&
     typeof value.showAltitudeMenu === "boolean" &&
-    (value.enableLecturas === undefined || typeof value.enableLecturas === "boolean") &&
-    (value.enableAltitude === undefined || typeof value.enableAltitude === "boolean")
+    optionalBoolean(value.enableLecturas) &&
+    optionalBoolean(value.enableAltitude) &&
+    optionalBoolean(value.showLecturaDistance) &&
+    (value.markerStyle === undefined ||
+      value.markerStyle === "icons" ||
+      value.markerStyle === "label" ||
+      value.markerStyle === "both") &&
+    (value.distancePanel === undefined ||
+      value.distancePanel === "off" ||
+      value.distancePanel === "gm" ||
+      value.distancePanel === "everyone")
   );
 }
 

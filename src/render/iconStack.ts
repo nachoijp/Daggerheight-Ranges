@@ -407,6 +407,21 @@ function forEachCommandPoint(commands: PathCommand[], fn: (x: number, y: number)
   }
 }
 
+/** Bounding box of an icon stack's commands, in its own local path units (anchor at 0, 0). */
+export function iconStackExtent(commands: PathCommand[]) {
+  let minX = 0;
+  let maxX = 0;
+  let minY = 0;
+  let maxY = 0;
+  forEachCommandPoint(commands, (x, y) => {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  });
+  return { minX, maxX, minY, maxY };
+}
+
 function translateCommands(commands: PathCommand[], dx: number, dy: number): PathCommand[] {
   return commands.map((cmd): PathCommand => {
     if (cmd[0] === Command.MOVE || cmd[0] === Command.LINE) {

@@ -55,3 +55,13 @@ export function effectiveDistance(
 ): number {
   return centerDistance - excessRadiusSum - tolerance;
 }
+
+/**
+ * The distance shown to people (the Lectura's number, the Distancias
+ * panel): center distance minus both tokens' excess bulk, so two Large
+ * creatures side by side read as adjacent — but without Tolerancia, which
+ * is a matching margin, not part of how far apart they really are.
+ */
+export function shownDistance(centerDistance: number, excessRadiusSum: number): number {
+  return Math.max(0, centerDistance - excessRadiusSum);
+}

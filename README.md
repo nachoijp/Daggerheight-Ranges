@@ -10,6 +10,8 @@ A relative, 3D-aware range and altitude measuring tool for [Owlbear Rodeo](https
 - **Height / altitude tracking** — right-click a token to set a persistent height marker, or nudge height live with hotkeys while measuring. Readings account for height in 3D, with a choice of spherical, cubic, or cylindrical distance.
 - **Three built-in presets** — Dagger, Steel, and Dragons — or build your own set of ranges from scratch.
 - **Multiple visualization styles** — icon stacks, rings, or filled circles, independently sized and colored.
+- **Exact numbers when you want them** — optionally add each token's exact distance to its Reading ("Close · 15ft"), and show height markers as icons, as a "⬆️ 30ft" label, or both.
+- **Distances panel** — a list of every token's Range, horizontal and vertical distance, and total distance from any token you pick, live as tokens move. For the GM only or for everyone; players never see hidden tokens.
 - **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia, and Protanopia.
 - **Bilingual** — Español / English, switchable per room.
 - **Configurable hotkeys and feature toggles** — strip it back to plain range-rings with no per-token readings or height tracking at all, if that's all you need.
@@ -50,7 +52,7 @@ Choose how distance is calculated (spherical / cubic / cylindrical), how forgivi
 
 ![Hotkeys and height toggles](docs/screenshots/global-tab-hotkeys.png)
 
-Set the room's language and hotkeys, and toggle whole feature groups on or off — including stripping the extension back to plain range-rings with no readings or height tracking.
+Set the room's language and hotkeys, and toggle whole feature groups on or off — including stripping the extension back to plain range-rings with no readings or height tracking. This is also where the exact-distance labels, the height marker style, and who gets the Distances panel are set; their defaults keep the extension looking the way it always has until you change them.
 
 ## Color-blind themes
 

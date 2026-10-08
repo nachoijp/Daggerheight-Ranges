@@ -5,7 +5,9 @@ import { createSettingsAction } from "./createSettingsAction";
 import { createTokenHeightMenu } from "./createTokenHeightMenu";
 import { syncSettings } from "./syncSettings";
 import { startMeasureMirrorReceiver } from "./measureMirror";
-import { refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
+import { startHeightOverlays } from "./heightOverlays";
+import { createDistancesAction } from "./createDistancesAction";
+import { startMarkerRefresh } from "./markerRefresh";
 import { languageFromMetadata } from "../i18n/language";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
 
@@ -93,20 +95,20 @@ async function init() {
   createMeasureTool(language, globalSettings);
   createThemeAction(language);
   createSettingsAction(language);
+  createDistancesAction(language, globalSettings.distancePanel ?? "off");
   if ((globalSettings.enableAltitude ?? true) && globalSettings.showAltitudeMenu) {
     createTokenHeightMenu(language);
   }
 
   // Height markers are real Scene items — unlike the toolbar registration
-  // above, there's nothing useful to fall back to without a Scene, so this
-  // part waits unboundedly and simply does nothing until (if ever) a Scene
-  // actually loads.
-  OBR.scene.onMetadataChange(() => refreshAllTokenHeightMarkers());
-  if (sceneReady) {
-    refreshAllTokenHeightMarkers();
-  } else {
-    waitUntilSceneReady().then(() => refreshAllTokenHeightMarkers());
-  }
+  // above, there is nothing useful to fall back to without a Scene, so both
+  // of these simply wait until (if ever) a Scene actually loads.
+  startMarkerRefresh().catch((error) => {
+    console.error("Daggerheight: failed to start height marker refresh", error);
+  });
+  startHeightOverlays().catch((error) => {
+    console.error("Daggerheight: failed to start height extras", error);
+  });
 }
 
 init().catch((error) => {
