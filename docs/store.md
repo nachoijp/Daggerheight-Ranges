@@ -1,23 +1,23 @@
 ---
-title: Daggerheight Ranges
+title: Rising Ranges
 description: A relative, 3D-aware range and altitude measuring tool — drag to see live range rings, per-token readings, and optional persistent height markers
 author: Ignacio Pedraza
-image: https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/in-action.png
-icon: https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/public/logo.png
+image: https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/in-action.png
+icon: https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/public/logo.png
 tags:
   - tool
   - combat
-manifest: https://daggerheight2.ijpedraza.com/manifest.json
-learn-more: https://github.com/nachoijp/Daggerheight-Ranges#readme
+manifest: https://risingranges.ijpedraza.com/manifest.json
+learn-more: https://github.com/nachoijp/Rising-Ranges#readme
 ---
 
-# Daggerheight Ranges
+# Rising Ranges
 
 A relative, 3D-aware range and altitude measuring tool. Drag from an Origin — a
 point or a token — and see live range rings, a Reading on every other token,
 and optional persistent height markers.
 
-![Measuring with rings and readings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/in-action.png)
+![Measuring with rings and readings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/in-action.png)
 
 ## Features
 
@@ -41,7 +41,7 @@ and optional persistent height markers.
 
 ## How to use
 
-1. Select the Daggerheight Ranges tool from the toolbar and drag from a token
+1. Select the Rising Ranges tool from the toolbar and drag from a token
    or an empty point to set your Origin.
 2. Every other token gets a live Reading showing which range band it's in,
    with an arrow if it's above or below you.
@@ -50,7 +50,7 @@ and optional persistent height markers.
 4. Right-click any token to set a persistent height marker that sticks around
    outside of a measurement.
 
-![Height markers on several tokens](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/height-markers.png)
+![Height markers on several tokens](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/height-markers.png)
 
 ## Build your own ranges
 
@@ -59,7 +59,7 @@ your own: name each range, set its radius and icon, and choose how distance
 is calculated (spherical / cubic / cylindrical) and how forgiving Tolerance
 is.
 
-![Editing a custom set of ranges](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/custom-ranges.png)
+![Editing a custom set of ranges](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/custom-ranges.png)
 
 ## What shows on the map
 
@@ -67,7 +67,7 @@ How each measured token is marked (an icon, a ring, a circle, or nothing),
 what its label says (the Range, the exact distance, or both), and what the
 rings around the Origin say — with any set of ranges, presets included.
 
-![Map settings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/map-tab.png)
+![Map settings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/map-tab.png)
 
 ## Distances panel
 
@@ -75,7 +75,7 @@ Pick a token to list every other one with its Range and its horizontal,
 vertical and total distance, live as tokens move — for the GM only or for
 everyone; players never see hidden tokens.
 
-![Distances panel](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/distances-panel.png)
+![Distances panel](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/distances-panel.png)
 
 ## Settings
 
@@ -83,11 +83,11 @@ Set the room's language and hotkeys, and toggle whole feature groups on or
 off — including stripping the extension back to plain range-rings with no
 readings or height tracking. Every setting applies right away.
 
-![General settings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/general-tab.png)
+![General settings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/general-tab.png)
 
 ## Color-blind themes
 
-![Theme picker](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/themes.png)
+![Theme picker](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/themes.png)
 
 ## About this fork
 
@@ -99,4 +99,4 @@ distance engine.
 ## Support
 
 Found a bug or have a feature request? Open an issue on
-[GitHub](https://github.com/nachoijp/Daggerheight-Ranges/issues).
+[GitHub](https://github.com/nachoijp/Rising-Ranges/issues).

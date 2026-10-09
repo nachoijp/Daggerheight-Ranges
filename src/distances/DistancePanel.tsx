@@ -142,7 +142,7 @@ export function DistancePanel() {
         setRole(role);
         setSelection(selection ?? []);
       })
-      .catch((error) => console.error("Daggerheight: failed to load the Distancias panel", error));
+      .catch((error) => console.error("Rising Ranges: failed to load the Distancias panel", error));
     const unsubscribers = [
       OBR.scene.onMetadataChange(setMetadata),
       OBR.scene.items.onChange(setItems),

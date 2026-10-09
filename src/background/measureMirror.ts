@@ -67,7 +67,7 @@ export class LocalMeasureView {
 
   private enqueue(task: () => Promise<unknown>) {
     this.queue = this.queue.then(task).catch((error) => {
-      console.error("Daggerheight: Medición view update failed", error);
+      console.error("Rising Ranges: Medición view update failed", error);
     });
     return this.queue;
   }
@@ -201,7 +201,7 @@ function send(message: MirrorMessage, attempt = 0) {
     })
     .catch((error) => {
       if (!isRateLimitError(error) || attempt >= 3) {
-        console.error("Daggerheight: failed to mirror Medición", error);
+        console.error("Rising Ranges: failed to mirror Medición", error);
         return;
       }
       sendIntervalMs = BACKOFF_SEND_INTERVAL_MS;
@@ -350,7 +350,7 @@ export function startMeasureMirrorReceiver() {
       connectionId,
       previous
         .then(() => handle(connectionId, event.data as MirrorMessage))
-        .catch((error) => console.error("Daggerheight: failed to show mirrored Medición", error))
+        .catch((error) => console.error("Rising Ranges: failed to show mirrored Medición", error))
     );
   });
 

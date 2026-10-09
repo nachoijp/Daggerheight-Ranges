@@ -1,4 +1,4 @@
-# Daggerheight Ranges
+# Rising Ranges
 
 A relative, 3D-aware range and altitude measuring tool for [Owlbear Rodeo](https://www.owlbear.rodeo/). Drag from an Origin — a point or a token — and see live range rings, a Reading on every other token, and optional persistent height markers.
 
@@ -71,7 +71,7 @@ The room's language, the key that activates Measurement, and who gets the Distan
 In Owlbear Rodeo, open the Extensions panel and add this manifest URL:
 
 ```
-https://daggerheight2.ijpedraza.com/manifest.json
+https://risingranges.ijpedraza.com/manifest.json
 ```
 
 ## About this fork
@@ -84,7 +84,7 @@ GNU GPLv3 — see [`LICENSE`](./LICENSE).
 
 ## Support
 
-Found a bug or have a feature request? Open an issue on [GitHub](https://github.com/nachoijp/Daggerheight-Ranges/issues).
+Found a bug or have a feature request? Open an issue on [GitHub](https://github.com/nachoijp/Rising-Ranges/issues).
 
 ## Contributing
 

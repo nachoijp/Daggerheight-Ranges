@@ -65,13 +65,13 @@ async function init() {
 
   // These work on scene items, so they wait for a scene themselves.
   startMarkerRefresh().catch((error) => {
-    console.error("Daggerheight: failed to start height marker refresh", error);
+    console.error("Rising Ranges: failed to start height marker refresh", error);
   });
   startHeightOverlays().catch((error) => {
-    console.error("Daggerheight: failed to start height extras", error);
+    console.error("Rising Ranges: failed to start height extras", error);
   });
 }
 
 init().catch((error) => {
-  console.error("Daggerheight: failed to initialize", error);
+  console.error("Rising Ranges: failed to initialize", error);
 });

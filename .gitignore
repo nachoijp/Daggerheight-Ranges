@@ -13,8 +13,6 @@ dist-ssr
 *.local
 
 # Deployment artifacts (built and zipped locally for uploading to the host)
-daggerheight2-dist/
-daggerheight2-dist.zip
 
 # Editor directories and files
 .vscode/*

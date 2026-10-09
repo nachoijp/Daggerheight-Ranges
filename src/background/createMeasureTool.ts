@@ -410,7 +410,7 @@ async function saveTokenPosition(interaction: InteractionManager<Item>): Promise
         return final.position;
       } catch (error) {
         if (attempt >= SAVE_RETRY_DELAYS_MS.length) {
-          console.error("Daggerheight: failed to save the dragged token's position", error);
+          console.error("Rising Ranges: failed to save the dragged token's position", error);
           return null;
         }
         await new Promise((resolve) => setTimeout(resolve, SAVE_RETRY_DELAYS_MS[attempt]));
@@ -635,7 +635,7 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
               scheduleLecturaRefresh(position);
             });
           pendingMove = move.catch((error) => {
-            console.error("Daggerheight: failed to snap the dragged token", error);
+            console.error("Rising Ranges: failed to snap the dragged token", error);
           });
           await pendingMove;
         }

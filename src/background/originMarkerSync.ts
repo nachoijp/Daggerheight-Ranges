@@ -79,7 +79,7 @@ async function write(request: OriginMarkerRequest): Promise<boolean> {
     }
     return true;
   } catch (error) {
-    console.error("Daggerheight: failed to sync token height marker", error);
+    console.error("Rising Ranges: failed to sync token height marker", error);
     cache = undefined;
     return false;
   }

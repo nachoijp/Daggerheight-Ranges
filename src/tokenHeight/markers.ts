@@ -113,7 +113,7 @@ function applyMarkerGeometry(
   marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(look);
   marker.position = computeIconAnchor(token, dpi, position, distance);
   marker.visible = token.visible;
-  marker.name = `Daggerheight: ${band.name} (${direction})`;
+  marker.name = `Rising Ranges: ${band.name} (${direction})`;
   marker.metadata[METADATA_KEY] = { bandId: band.id, direction } as TokenHeightState;
 }
 
@@ -143,7 +143,7 @@ function buildTokenHeightMarker(
     .locked(true)
     .disableHit(true)
     .visible(token.visible)
-    .name(`Daggerheight: ${band.name} (${direction})`)
+    .name(`Rising Ranges: ${band.name} (${direction})`)
     .metadata({ [METADATA_KEY]: { bandId: band.id, direction } as TokenHeightState })
     .build();
   return item;

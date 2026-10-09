@@ -225,7 +225,7 @@ function schedule() {
       try {
         await reconcile();
       } catch (error) {
-        console.error("Daggerheight: failed to draw height labels", error);
+        console.error("Rising Ranges: failed to draw height labels", error);
         resync = true;
       }
     }
@@ -252,7 +252,7 @@ async function loadScene() {
 export async function startHeightOverlays() {
   OBR.scene.onReadyChange((ready) => {
     if (ready) {
-      loadScene().catch((error) => console.error("Daggerheight: failed to load height labels", error));
+      loadScene().catch((error) => console.error("Rising Ranges: failed to load height labels", error));
     } else {
       // The scene's local items go with it.
       sceneReady = false;

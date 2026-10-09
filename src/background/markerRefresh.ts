@@ -43,7 +43,7 @@ function refresh() {
       try {
         await refreshAllTokenHeightMarkers();
       } catch (error) {
-        console.error("Daggerheight: failed to refresh height markers", error);
+        console.error("Rising Ranges: failed to refresh height markers", error);
       }
     }
     running = false;
