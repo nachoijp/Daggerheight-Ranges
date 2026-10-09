@@ -6,6 +6,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { DistancePanel } from "./DistancePanel";
 import { PluginGate } from "../util/PluginGate";
 import { PluginThemeProvider } from "../util/PluginThemeProvider";
+import { GlassFrame } from "../util/GlassFrame";
 import { OBRContextProvider } from "../settings/OBRContext";
 
 import "../settings/index.css";
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <PluginThemeProvider>
         <CssBaseline />
         <OBRContextProvider>
-          <DistancePanel />
+          <GlassFrame>
+            <DistancePanel />
+          </GlassFrame>
         </OBRContextProvider>
       </PluginThemeProvider>
     </PluginGate>

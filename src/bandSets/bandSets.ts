@@ -2,7 +2,7 @@ import OBR from "@owlbear-rodeo/sdk";
 import { isPlainObject } from "../util/isPlainObject";
 import { getPluginId } from "../util/getPluginId";
 import { BandSet } from "../engine/types";
-import type { Language } from "../i18n/language";
+import { languageFromMetadata, type Language } from "../i18n/language";
 import { dagger } from "./templates/dagger";
 import { steel } from "./templates/steel";
 import { dragons } from "./templates/dragons";
@@ -20,6 +20,13 @@ export function getDefaultBandSets(language: Language): BandSet[] {
  * a language change is reflected even for a preset selected before the
  * switch. Custom BandSets (no matching default id) pass through untouched.
  */
+/** The room's active BandSet, from already-fetched scene metadata (the first preset when none is stored yet). */
+export function bandSetFromMetadata(metadata: Record<string, unknown>): BandSet {
+  const language = languageFromMetadata(metadata);
+  const raw = (metadata[getPluginId("bandSet")] ?? getDefaultBandSets(language)[0]) as BandSet;
+  return resolveBandSet(raw, language);
+}
+
 export function resolveBandSet(bandSet: BandSet, language: Language): BandSet {
   const defaults = getDefaultBandSets(language);
   return defaults.find((defaultBandSet) => defaultBandSet.id === bandSet.id) ?? bandSet;

@@ -21,6 +21,12 @@ import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "./iconA
 import { type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
 import { formatDistance } from "../util/flattenGridScale";
+import {
+  resolveDisplay,
+  showsBandName,
+  showsDistance,
+  type DisplaySettings,
+} from "../settings/display";
 
 // Everything needed to draw a Lectura, independent of which client is
 // drawing it. The measuring client computes each token's LecturaState (the
@@ -37,7 +43,10 @@ export type LecturaContext = {
   language: Language;
   /** Optional: a measuring client from before the Lectura distance existed doesn't send them. */
   gridScale?: GridScale;
+  /** Only read when `display` is missing (a measuring client from 0.5.x). */
   showDistance?: boolean;
+  /** The room's display settings, resolved by the measuring client. Missing from clients before 0.6.0. */
+  display?: DisplaySettings;
 };
 
 /** JSON-safe (it's broadcast): null, not undefined, for "out of range". */
@@ -62,12 +71,14 @@ export function sameLecturaState(a: LecturaState | undefined, b: LecturaState): 
   );
 }
 
+/** The context's display settings, rebuilt the 0.5.x way when an older measuring client didn't send them. */
+function displayOf(ctx: LecturaContext): DisplaySettings {
+  return ctx.display ?? resolveDisplay(undefined, ctx.bandSet, { showLecturaDistance: ctx.showDistance });
+}
+
 export const lecturaColor: Color = { r: 66, g: 66, b: 66 };
 export const heightLabelOffset: Vector2 = { x: 0, y: -40 };
 const lecturaLabelOffset: Vector2 = { x: 0, y: 40 };
-// Ring/circle modes are sized to exactly match the token's own footprint —
-// no extra padding, it read as visibly bigger than the token otherwise.
-const LECTURA_SHAPE_PADDING = 1;
 
 // A token beyond the Filtro's distance is dimmed rather than hidden, so
 // "which tokens are in range" reads as a highlight against everything else
@@ -126,25 +137,25 @@ function lecturaIconDirection(dz: number): Direction {
   return dz > 0 ? "down" : "up";
 }
 
-function showsDistance(ctx: LecturaContext): boolean {
-  return !!ctx.showDistance && !!ctx.gridScale;
+function showsDistanceIn(ctx: LecturaContext): boolean {
+  return showsDistance(displayOf(ctx).lecturaLabel) && !!ctx.gridScale;
 }
 
 /** Whether a Lectura gets a text label at all: its Banda name, its distance, or both. */
 function hasLecturaLabel(ctx: LecturaContext): boolean {
-  return !!ctx.bandSet.showLabel || showsDistance(ctx);
+  return showsBandName(displayOf(ctx).lecturaLabel) || showsDistanceIn(ctx);
 }
 
 function getLecturaLabelText(state: LecturaState, ctx: LecturaContext): string {
   const parts: string[] = [];
-  if (ctx.bandSet.showLabel) {
+  if (showsBandName(displayOf(ctx).lecturaLabel)) {
     parts.push(
       state.index === null
         ? translate(ctx.language, "onMap.outOfRange")
         : ctx.bandSet.bands[state.index].name
     );
   }
-  if (showsDistance(ctx) && state.distance !== undefined) {
+  if (showsDistanceIn(ctx) && state.distance !== undefined) {
     parts.push(formatDistance(ctx.gridScale!, state.distance));
   }
   return `${parts.join(" · ")}${directionArrow(state.dz)}`;
@@ -154,12 +165,12 @@ function lecturaColorFor(index: number | null, theme: Theme): Color {
   return index === null ? lecturaColor : theme.colors[index % theme.colors.length];
 }
 
-/** Center + padded size shared by the ring and circle Visualización modes. */
-function lecturaShapeGeometry(token: Image, dpi: number) {
+/** Center + size of the ring and circle styles: the token's own footprint (the circle style scales it). */
+function lecturaShapeGeometry(token: Image, dpi: number, scale: number) {
   const { topLeft, scaledWidth, scaledHeight } = getTokenBounds(token, dpi);
   return {
     center: { x: topLeft.x + scaledWidth / 2, y: topLeft.y + scaledHeight / 2 },
-    size: Math.max(scaledWidth, scaledHeight) * LECTURA_SHAPE_PADDING,
+    size: Math.max(scaledWidth, scaledHeight) * scale,
   };
 }
 
@@ -180,54 +191,52 @@ function withLecturaMetadata(item: Item, tokenId: string, role: "visual" | "labe
   };
 }
 
-function iconShapeFor(state: LecturaState, bandSet: BandSet) {
+function iconShapeFor(state: LecturaState, ctx: LecturaContext) {
   return (
-    (state.index !== null ? bandSet.bands[state.index].iconShape : undefined) ??
-    bandSet.iconShape ??
-    "circle"
+    (state.index !== null ? ctx.bandSet.bands[state.index].iconShape : undefined) ??
+    displayOf(ctx).iconShape
   );
 }
 
 function iconCommands(state: LecturaState, ctx: LecturaContext) {
-  const { bandSet, dpi } = ctx;
   if (state.index === null) {
     return [];
   }
+  const display = displayOf(ctx);
   // Opposite side from the persistent marker's own position, so the two
   // don't render on top of each other when a measured token has both.
   return buildIconStackCommands(
-    iconShapeFor(state, bandSet),
+    iconShapeFor(state, ctx),
     state.index + 1,
-    dpi,
-    bandSet.iconSize ?? 1,
-    oppositeIconPosition(bandSet.iconPosition ?? "top"),
-    lecturaIconDirection(state.dz)
+    ctx.dpi,
+    display.lecturaIcon.size,
+    oppositeIconPosition(display.marker.position),
+    lecturaIconDirection(state.dz),
+    // A token at the Origen's own height points neither way: keep it centered.
+    state.dz !== 0
   );
 }
 
 function iconAnchor(token: Image, ctx: LecturaContext) {
-  return computeIconAnchor(
-    token,
-    ctx.dpi,
-    oppositeIconPosition(ctx.bandSet.iconPosition ?? "top"),
-    ctx.bandSet.iconDistance ?? 0.15
-  );
+  const { marker } = displayOf(ctx);
+  return computeIconAnchor(token, ctx.dpi, oppositeIconPosition(marker.position), marker.distance);
 }
 
 function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaContext): Item {
   const { bandSet, theme, dpi } = ctx;
-  const visualization = bandSet.visualization ?? "icon";
+  const display = displayOf(ctx);
   const color = getColorString(lecturaColorFor(state.index, theme));
   const opacityScale = lecturaOpacityScale(state.withinFilter);
 
-  if (visualization === "icon") {
+  if (display.lecturaStyle === "icon") {
+    const { opacity } = display.lecturaIcon;
     const item = buildPath()
       .commands(iconCommands(state, ctx))
       .fillColor(color)
-      .fillOpacity(1 * opacityScale)
+      .fillOpacity(opacity * opacityScale)
       .strokeColor("#111827")
-      .strokeOpacity(0.65 * opacityScale)
-      .strokeWidth(dpi * getStrokeWidthRatio(iconShapeFor(state, bandSet)))
+      .strokeOpacity(0.65 * opacity * opacityScale)
+      .strokeWidth(dpi * getStrokeWidthRatio(iconShapeFor(state, ctx)))
       .position(iconAnchor(token, ctx))
       .disableHit(true)
       .layer("POPOVER")
@@ -235,18 +244,17 @@ function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaC
     return withLecturaMetadata(item, token.id, "visual");
   }
 
-  const { center, size } = lecturaShapeGeometry(token, dpi);
   const shapeType = bandSet.shape === "square" ? "RECTANGLE" : "CIRCLE";
-  const position = lecturaShapePosition(center, size, bandSet.shape);
 
-  if (visualization === "ring") {
+  if (display.lecturaStyle === "ring") {
+    const { center, size } = lecturaShapeGeometry(token, dpi, 1);
     const item = buildShape()
       .shapeType(shapeType)
       .fillOpacity(0)
       .strokeColor(color)
-      .strokeOpacity((state.index === null ? 0 : 0.9) * opacityScale)
-      .strokeWidth(dpi * (bandSet.ringWidth ?? 0.05))
-      .position(position)
+      .strokeOpacity((state.index === null ? 0 : display.lecturaRing.opacity) * opacityScale)
+      .strokeWidth(dpi * display.lecturaRing.size)
+      .position(lecturaShapePosition(center, size, bandSet.shape))
       .width(size)
       .height(size)
       .disableHit(true)
@@ -256,12 +264,13 @@ function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaC
   }
 
   // circle
+  const { center, size } = lecturaShapeGeometry(token, dpi, display.lecturaCircle.size);
   const item = buildShape()
     .shapeType(shapeType)
     .fillColor(color)
-    .fillOpacity((state.index === null ? 0 : bandSet.circleOpacity ?? 0.35) * opacityScale)
+    .fillOpacity((state.index === null ? 0 : display.lecturaCircle.opacity) * opacityScale)
     .strokeOpacity(0)
-    .position(position)
+    .position(lecturaShapePosition(center, size, bandSet.shape))
     .width(size)
     .height(size)
     .disableHit(true)
@@ -289,7 +298,10 @@ function buildLecturaLabelItem(token: Image, state: LecturaState, ctx: LecturaCo
 }
 
 export function buildLecturaItems(token: Image, state: LecturaState, ctx: LecturaContext): Item[] {
-  const items = [buildLecturaVisualItem(token, state, ctx)];
+  const items: Item[] = [];
+  if (displayOf(ctx).lecturaStyle !== "none") {
+    items.push(buildLecturaVisualItem(token, state, ctx));
+  }
   if (hasLecturaLabel(ctx)) {
     items.push(buildLecturaLabelItem(token, state, ctx));
   }
@@ -309,7 +321,8 @@ export function applyLecturaState(
   state: LecturaState,
   ctx: LecturaContext
 ) {
-  const { bandSet, theme, dpi } = ctx;
+  const { theme, dpi } = ctx;
+  const display = displayOf(ctx);
   const role = getMetadata(item.metadata, getPluginId("lecturaRole"), "visual");
   const opacityScale = lecturaOpacityScale(state.withinFilter);
   if (role === "label" && isLabel(item)) {
@@ -322,25 +335,25 @@ export function applyLecturaState(
     item.style.backgroundOpacity = 0.8 * labelOpacity;
     return;
   }
-  const visualization = bandSet.visualization ?? "icon";
   const color = getColorString(lecturaColorFor(state.index, theme));
-  if (visualization === "icon" && isPath(item)) {
+  if (display.lecturaStyle === "icon" && isPath(item)) {
+    const { opacity } = display.lecturaIcon;
     item.position = iconAnchor(token, ctx);
     item.commands = iconCommands(state, ctx);
     item.style.fillColor = color;
-    item.style.fillOpacity = 1 * opacityScale;
-    item.style.strokeOpacity = 0.65 * opacityScale;
-    item.style.strokeWidth = dpi * getStrokeWidthRatio(iconShapeFor(state, bandSet));
+    item.style.fillOpacity = opacity * opacityScale;
+    item.style.strokeOpacity = 0.65 * opacity * opacityScale;
+    item.style.strokeWidth = dpi * getStrokeWidthRatio(iconShapeFor(state, ctx));
   } else if (isShape(item)) {
-    if (visualization === "ring") {
+    if (display.lecturaStyle === "ring") {
       item.style.strokeColor = color;
-      item.style.strokeOpacity = (state.index === null ? 0 : 0.9) * opacityScale;
-      item.style.strokeWidth = dpi * (bandSet.ringWidth ?? 0.05);
+      item.style.strokeOpacity = (state.index === null ? 0 : display.lecturaRing.opacity) * opacityScale;
+      item.style.strokeWidth = dpi * display.lecturaRing.size;
       item.style.fillOpacity = 0;
     } else {
       item.style.fillColor = color;
       item.style.fillOpacity =
-        (state.index === null ? 0 : bandSet.circleOpacity ?? 0.35) * opacityScale;
+        (state.index === null ? 0 : display.lecturaCircle.opacity) * opacityScale;
       item.style.strokeOpacity = 0;
     }
   }

@@ -11,12 +11,16 @@ import { getColorString, getLabelTextColor } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
 import { getStoredTheme } from "../theme/themes";
 import { BandSet, IconPosition } from "../engine/types";
-import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
-import { languageFromMetadata } from "../i18n/language";
-import { globalSettingsFromMetadata, type MarkerStyle } from "../settings/globalSettings";
+import { bandSetFromMetadata } from "../bandSets/bandSets";
+import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { computeIconAnchor } from "../render/iconAnchor";
 import { iconStackExtent } from "../render/iconStack";
-import { getTokenHeightState, isTokenHeightMarker } from "../tokenHeight/markers";
+import {
+  getTokenHeightState,
+  isTokenHeightMarker,
+  markerLookFromMetadata,
+  type MarkerLook,
+} from "../tokenHeight/markers";
 
 // The "⬆️ 30ft" label of the "label" and "both" marker styles: drawn where
 // the marker's icon stack would be ("label", the marker itself is then
@@ -61,12 +65,6 @@ const ARROW = { up: "⬆️", down: "⬇️" } as const;
 const TEXT_GAP = 0.05;
 const NO_EXTENT = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 
-function activeBandSet(): BandSet {
-  const language = languageFromMetadata(metadata);
-  const raw = (metadata[getPluginId("bandSet")] ?? getDefaultBandSets(language)[0]) as BandSet;
-  return resolveBandSet(raw, language);
-}
-
 /** Where the label sits on the marker's side of the token, and which way it hangs from there (away from the token). */
 function textPlacement(
   token: Image,
@@ -94,7 +92,7 @@ function wantedLabel(
   token: Image,
   bandSet: BandSet,
   scale: GridScale,
-  style: MarkerStyle
+  look: MarkerLook
 ): Wanted | null {
   const state = getTokenHeightState(marker);
   const bandIndex = state ? bandSet.bands.findIndex((band) => band.id === state.bandId) : -1;
@@ -104,16 +102,16 @@ function wantedLabel(
   const text = `${ARROW[state.direction]} ${formatDistance(scale, bandSet.bands[bandIndex].radius)}`;
   const theme = getStoredTheme();
   const color = theme.colors[bandIndex % theme.colors.length];
-  const side = bandSet.iconPosition ?? "top";
-  const iconDistance = bandSet.iconDistance ?? 0.15;
+  const { position: side, distance: iconDistance, opacity } = look.tuning;
   // In "label" the label takes the icons' place; in "both" it goes past them.
-  const extent = style === "both" ? iconStackExtent(marker.commands) : NO_EXTENT;
-  const gap = style === "both" ? TEXT_GAP * dpi : 0;
+  const extent = look.style === "both" ? iconStackExtent(marker.commands) : NO_EXTENT;
+  const gap = look.style === "both" ? TEXT_GAP * dpi : 0;
   const signature = JSON.stringify([
     text,
     color,
     side,
     iconDistance,
+    opacity,
     extent,
     gap,
     dpi,
@@ -135,8 +133,9 @@ function wantedLabel(
         .padding(4)
         .cornerRadius(12)
         .fillColor(getLabelTextColor(color, 180))
+        .fillOpacity(opacity)
         .backgroundColor(getColorString(color))
-        .backgroundOpacity(0.85)
+        .backgroundOpacity(0.85 * opacity)
         .attachedTo(token.id)
         .layer("ATTACHMENT")
         .locked(true)
@@ -155,11 +154,11 @@ function computeWanted(): Map<string, Wanted> {
     return wanted;
   }
   const settings = globalSettingsFromMetadata(metadata);
-  const style = settings.markerStyle ?? "icons";
-  if (!(settings.enableAltitude ?? true) || style === "icons") {
+  const look = markerLookFromMetadata(metadata);
+  if (!(settings.enableAltitude ?? true) || look.style === "icons") {
     return wanted;
   }
-  const bandSet = activeBandSet();
+  const bandSet = bandSetFromMetadata(metadata);
   const tokens = new Map(items.filter(isImage).map((item) => [item.id, item]));
   for (const marker of items) {
     if (!isTokenHeightMarker(marker) || !marker.attachedTo) {
@@ -170,7 +169,7 @@ function computeWanted(): Map<string, Wanted> {
     if (!token || (role !== "GM" && !token.visible)) {
       continue;
     }
-    const label = wantedLabel(marker, token, bandSet, gridScale, style);
+    const label = wantedLabel(marker, token, bandSet, gridScale, look);
     if (label) {
       wanted.set(token.id, label);
     }

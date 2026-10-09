@@ -342,13 +342,18 @@ function cellCommands(
  * horizontal row. Stepped shapes taper in size along the stack, growing from
  * the first icon (index 0) to the last.
  */
+/** How far a vertical stack is nudged toward its direction, as a fraction of its own length. */
+export const DIRECTION_NUDGE = 0.1;
+
 export function buildIconStackCommands(
   shape: IconShape,
   count: number,
   dpi: number,
   sizeScale: number,
   position: IconPosition,
-  direction: Direction = "up"
+  direction: Direction = "up",
+  /** Nudge a vertical stack toward the way it points (see DIRECTION_NUDGE). Off for a Lectura at the Origen's own height, which points neither way. */
+  nudge = true
 ): PathCommand[] {
   const { cell, stepped } = SHAPE_CONFIG[shape];
   const ratio = SHAPE_SIZE_RATIO[cell];
@@ -373,7 +378,13 @@ export function buildIconStackCommands(
   const crossCenterY = position === "top" ? -maxHeight / 2 : maxHeight / 2;
 
   const commands: PathCommand[] = [];
-  let cursor = -totalStack / 2;
+  // A vertical stack (left/right of the token) sits a little toward the way
+  // it points — higher when up, lower when down — instead of dead center
+  // on the token's midline, which read oddly balanced. A horizontal stack
+  // (above/below the token) stays put: shifting it would only move it
+  // toward or away from the token.
+  const shift = !horizontal && nudge ? (direction === "up" ? -1 : 1) * DIRECTION_NUDGE * totalStack : 0;
+  let cursor = -totalStack / 2 + shift;
   for (let i = 0; i < count; i++) {
     const width = widths[i];
     const height = heights[i];

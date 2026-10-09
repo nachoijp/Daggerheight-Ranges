@@ -4,8 +4,6 @@ import Stack from "@mui/material/Stack";
 import List from "@mui/material/List";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import FormControl from "@mui/material/FormControl";
-import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
@@ -14,19 +12,21 @@ import DeleteRounded from "@mui/icons-material/DeleteRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import Tooltip from "@mui/material/Tooltip";
 
-import { FieldLabel } from "./FieldLabel";
 import { BandItem } from "./BandItem";
 import { BandShapeButtonGroup } from "./BandShapeButtonGroup";
 import { getStoredTheme } from "../theme/themes";
-import { BandSet } from "../engine/types";
+import { BandSet, IconShape } from "../engine/types";
 import { useTranslation } from "../i18n/useTranslation";
 
 export function BandSetEditor({
   bandSet,
+  defaultIconShape,
   onChange,
   onDelete,
 }: {
   bandSet: BandSet;
+  /** The room's icon shape, which a Banda's own one overrides. */
+  defaultIconShape: IconShape;
   onChange?: (bandSet: BandSet) => void;
   onDelete?: (bandSet: BandSet) => void;
 }) {
@@ -87,10 +87,11 @@ export function BandSetEditor({
                       }
                     : undefined
                 }
-                hideLabel={bandSet.hideLabel}
-                hideSize={bandSet.hideSize}
+                // Name on the left, radius on the right — what the ring
+                // labels show on the map is a Mapa setting now.
+                hideSize
                 bandShape={bandSet.shape}
-                defaultIconShape={bandSet.iconShape ?? "circle"}
+                defaultIconShape={defaultIconShape}
               />
             );
           })}
@@ -157,30 +158,6 @@ function Controls({
         justifyContent="space-around"
         flexWrap="wrap"
       >
-        <FormControl sx={{ minWidth: 100, alignItems: "center" }}>
-          <FieldLabel tooltip={t("settings.bandSetEditor.showNameTooltip")}>
-            {t("settings.bandSetEditor.showName")}
-          </FieldLabel>
-          <Switch
-            sx={{ overflow: "visible" }}
-            checked={!bandSet.hideLabel}
-            onChange={(_, checked) =>
-              onChange({ ...bandSet, hideLabel: !checked })
-            }
-          />
-        </FormControl>
-        <FormControl sx={{ minWidth: 100, alignItems: "center" }}>
-          <FieldLabel tooltip={t("settings.bandSetEditor.showDistanceTooltip")}>
-            {t("settings.bandSetEditor.showDistance")}
-          </FieldLabel>
-          <Switch
-            sx={{ overflow: "visible" }}
-            checked={!bandSet.hideSize}
-            onChange={(_, checked) =>
-              onChange({ ...bandSet, hideSize: !checked })
-            }
-          />
-        </FormControl>
         <BandShapeButtonGroup
           value={bandSet.shape}
           onChange={(shape) => {

@@ -1,11 +1,6 @@
-import Select from "@mui/material/Select";
-import MenuItem from "@mui/material/MenuItem";
-import ListItemIcon from "@mui/material/ListItemIcon";
 import Box from "@mui/material/Box";
 import { IconShape } from "../engine/types";
-import { ICON_SHAPES, iconStackPreviewSvg } from "../render/iconStack";
-import { FieldLabel } from "./FieldLabel";
-import { useTranslation } from "../i18n/useTranslation";
+import { iconStackPreviewSvg } from "../render/iconStack";
 import type { TranslationKey } from "../i18n/translate";
 
 export const SHAPE_LABEL_KEYS: Record<IconShape, TranslationKey> = {
@@ -42,41 +37,5 @@ export function ShapePreview({ shape }: { shape: IconShape }) {
       }}
       dangerouslySetInnerHTML={{ __html: svg }}
     />
-  );
-}
-
-export function IconShapePicker({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: IconShape;
-  onChange: (value: IconShape) => void;
-  disabled?: boolean;
-}) {
-  const t = useTranslation();
-  return (
-    <Box>
-      <FieldLabel id="icon-shape-label" tooltip={t("settings.iconShape.tooltip")}>
-        {t("settings.iconShape.label")}
-      </FieldLabel>
-      <Select
-        labelId="icon-shape-label"
-        value={value}
-        onChange={(e) => onChange(e.target.value as IconShape)}
-        disabled={disabled}
-        size="small"
-        fullWidth
-      >
-        {ICON_SHAPES.map((shape) => (
-          <MenuItem key={shape} value={shape}>
-            <ListItemIcon sx={{ minWidth: 32 }}>
-              <ShapePreview shape={shape} />
-            </ListItemIcon>
-            {t(SHAPE_LABEL_KEYS[shape])}
-          </MenuItem>
-        ))}
-      </Select>
-    </Box>
   );
 }

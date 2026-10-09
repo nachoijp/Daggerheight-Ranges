@@ -1,11 +1,15 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
+import { GLASS_FRAME } from "../util/glass";
 
 export const DISTANCES_POPOVER_ID = getPluginId("popover/distances");
 
 export const PANEL_MIN_WIDTH = 300;
 export const PANEL_MAX_WIDTH = 560;
+/** Until Owlbear reports how much room is left on screen (see roomBelow). */
 export const PANEL_MAX_HEIGHT = 600;
+/** Where the panel's top sits (see anchorPosition below). */
+export const PANEL_TOP = 72;
 // Only until the panel has measured its content and resized to fit it.
 const PANEL_INITIAL_HEIGHT = 160;
 
@@ -21,7 +25,14 @@ const CLOSED_CHANNEL = getPluginId("distancesClosed");
 let open = false;
 
 /** Background script: keeps `open` in step with the panel's own ✕. */
+let watching = false;
 export function watchDistancesPanel() {
+  // The toolbar action is registered again whenever the settings change;
+  // one listener is enough.
+  if (watching) {
+    return;
+  }
+  watching = true;
   OBR.broadcast.onMessage(CLOSED_CHANNEL, () => {
     open = false;
   });
@@ -49,16 +60,18 @@ export async function toggleDistancesPanel() {
   await OBR.popover.open({
     id: DISTANCES_POPOVER_ID,
     url: "/distances.html",
-    width: PANEL_MIN_WIDTH,
+    width: PANEL_MIN_WIDTH + GLASS_FRAME,
     height: PANEL_INITIAL_HEIGHT,
     // Pinned to the screen's top-left corner rather than anchored to the
     // toolbar button: anchored, it opened over the middle of the map,
     // right on top of the tokens it lists. The offset clears Owlbear's own
     // top bar — an estimate, like the other popovers' sizes.
     anchorReference: "POSITION",
-    anchorPosition: { left: 16, top: 72 },
+    anchorPosition: { left: 16, top: PANEL_TOP },
     anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
     transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
     disableClickAway: true,
+    // The page draws its own translucent panel (GlassFrame).
+    hidePaper: true,
   });
 }

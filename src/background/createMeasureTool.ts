@@ -46,11 +46,20 @@ import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
 import { flattenGridScale } from "../util/flattenGridScale";
 import { getTokenRadius } from "../render/iconAnchor";
 import {
+  resolveDisplay,
+  showsBandName,
+  showsDistance,
+  type DisplaySettings,
+  type RingLabel,
+} from "../settings/display";
+import {
   clearTokenHeightMarker,
   getAllTokenHeightMarkers,
   getTokenHeightState,
+  markerLookFromMetadata,
   setTokenHeightMarker,
   tokenHeightsFromMarkers,
+  type MarkerLook,
   type TokenHeightState,
 } from "../tokenHeight/markers";
 import { DEFAULT_LANGUAGE, languageFromMetadata, type Language } from "../i18n/language";
@@ -60,7 +69,6 @@ import {
   globalSettingsFromMetadata,
   letterToCode,
   type GlobalSettings,
-  type MarkerStyle,
 } from "../settings/globalSettings";
 
 type OriginMarkerRequest = {
@@ -68,7 +76,7 @@ type OriginMarkerRequest = {
   ref: TokenHeightState | undefined;
   bandSet: BandSet;
   dpi: number;
-  style: MarkerStyle;
+  look: MarkerLook;
   attempt: number;
 };
 
@@ -153,17 +161,20 @@ let activeHotkeys: GlobalSettings = DEFAULT_GLOBAL_SETTINGS;
 // feature — Z/X, the height label, marker seeding/writes — turns off
 // together instead of each call site defaulting it separately.
 let activeAltitudeEnabled = true;
-// Mirrors activeHotkeys.enableLecturas (missing = true). When off, the tool
-// itself, its shortcut, and the Bandas rings/gradient stay exactly as they
-// are — only the per-token Lectura items (icon/ring/circle + label) are
-// skipped, leaving plain Ranges-style distance rings with no per-token
-// readings.
+// The room's display settings (see settings/display.ts), resolved once per
+// Medición like the BandSet.
+let activeDisplay: DisplaySettings | null = null;
+// Whether there's any per-token Lectura to draw (a visual, a label, or
+// both). When neither, the tool itself, its shortcut, and the Bandas
+// rings/gradient stay exactly as they are — plain Ranges-style distance
+// rings with no per-token readings.
 let activeLecturasEnabled = true;
-// Mirrors activeHotkeys.showLecturaDistance (missing = false).
+// Whether Lectura labels show the distance, so each state carries it.
 let activeShowDistance = false;
-// Mirrors activeHotkeys.markerStyle (missing = "icons"): the grabbed token's
-// marker writes need it, and it's already in hand from onToolDown's fetch.
-let activeMarkerStyle: MarkerStyle = "icons";
+// The room's marker look (style, icon shape, position, size, ...): the
+// grabbed token's marker writes need it, and it's already in hand from
+// onToolDown's metadata fetch.
+let activeMarkerLook: MarkerLook | null = null;
 let activeDpi = 0;
 // The Origen's own footprint radius (grid units), 0 for a free-point
 // Medición. Only its excess over a standard 1-grid-unit token (see
@@ -400,7 +411,8 @@ function getBandItems(
   theme: Theme,
   bandSet: BandSet,
   dpi: number,
-  gridScale: GridScale
+  gridScale: GridScale,
+  ringLabel: RingLabel
 ): Item[] {
   const items = [];
   for (let i = 0; i < bandSet.bands.length; i++) {
@@ -418,10 +430,10 @@ function getBandItems(
     );
     const labelItemOffset = { x: 0, y: radius + labelOffset };
     let labelText = "";
-    if (!bandSet.hideLabel) {
+    if (showsBandName(ringLabel)) {
       labelText += band.name;
     }
-    if (!bandSet.hideSize) {
+    if (showsDistance(ringLabel)) {
       labelText += `${labelText ? " " : ""}${flattenGridScale(
         gridScale,
         band.radius
@@ -467,10 +479,13 @@ function getLecturaBandIndex(distance: number, bandSet: BandSet): number | undef
 }
 
 function isWithinFilter(distance: number, bandSet: BandSet): boolean {
-  if (!bandSet.filterEnabled || !bandSet.filterBandId) {
+  if (!activeDisplay?.filterEnabled || !activeDisplay.filterBandId) {
     return true;
   }
-  const filterBand = bandSet.bands.find((band) => band.id === bandSet.filterBandId);
+  const filterBandId = activeDisplay.filterBandId;
+  // Also covers a Banda of another set: the Filtro is a room setting now,
+  // so the active set may not have the Banda it was set to.
+  const filterBand = bandSet.bands.find((band) => band.id === filterBandId);
   // The referenced Banda was deleted — don't silently hide/dim every
   // Lectura until the user notices and re-picks one.
   if (!filterBand) {
@@ -558,7 +573,7 @@ async function writeOriginMarker(request: OriginMarkerRequest): Promise<boolean>
         request.bandSet,
         request.dpi,
         known,
-        request.style
+        request.look
       );
       originMarkerCache = { tokenId, markers };
     } else {
@@ -605,11 +620,11 @@ function originMarkerRequest(
   position?: Vector2
 ): OriginMarkerRequest | null {
   const live = liveDownTargetImage();
-  if (!live || !activeBandSet) {
+  if (!live || !activeBandSet || !activeMarkerLook) {
     return null;
   }
   const token = position ? { ...live, position } : live;
-  return { token, ref, bandSet: activeBandSet, dpi: activeDpi, style: activeMarkerStyle, attempt: 0 };
+  return { token, ref, bandSet: activeBandSet, dpi: activeDpi, look: activeMarkerLook, attempt: 0 };
 }
 
 function enqueueOriginMarkerWrite(request: OriginMarkerRequest | null): Promise<void> {
@@ -771,6 +786,8 @@ function cleanup() {
   activeHeightLabelText = "";
   downTarget = null;
   activeBandSet = null;
+  activeDisplay = null;
+  activeMarkerLook = null;
   sortedBands = [];
   bandIndex = 0;
   activeTokens = [];
@@ -948,9 +965,11 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       activeLanguage = language;
       activeHotkeys = globalSettingsFromMetadata(sceneMetadata);
       activeAltitudeEnabled = activeHotkeys.enableAltitude ?? true;
-      activeLecturasEnabled = activeHotkeys.enableLecturas ?? true;
-      activeShowDistance = activeHotkeys.showLecturaDistance ?? false;
-      activeMarkerStyle = activeHotkeys.markerStyle ?? "icons";
+      activeDisplay = resolveDisplay(activeHotkeys.display, bandSet, activeHotkeys);
+      activeLecturasEnabled =
+        activeDisplay.lecturaStyle !== "none" || activeDisplay.lecturaLabel !== "none";
+      activeShowDistance = showsDistance(activeDisplay.lecturaLabel);
+      activeMarkerLook = markerLookFromMetadata(sceneMetadata);
       activeDpi = dpi;
       activeOriginRadius =
         downTarget && isImage(downTarget) ? getTokenRadius(downTarget, dpi) : 0;
@@ -1001,7 +1020,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
       if (generation !== toolDownGeneration) {
         return;
       }
-      const bandItems = getBandItems(activeCenter, theme, bandSet, dpi, gridScale);
+      const bandItems = getBandItems(activeCenter, theme, bandSet, dpi, gridScale, activeDisplay.ringLabel);
       const [interaction] = await Promise.all([
         OBR.interaction.startItemInteraction(bandItems),
         shadersAdded,
@@ -1026,6 +1045,7 @@ export function createMeasureTool(language: Language, hotkeys: GlobalSettings) {
         language,
         gridScale,
         showDistance: activeShowDistance,
+        display: activeDisplay,
       };
       activeLecturaStates = new Map();
       if (activeLecturasEnabled) {

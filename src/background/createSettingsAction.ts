@@ -3,6 +3,8 @@ import { getPluginId } from "../util/getPluginId";
 import settingsIcon from "../assets/settings.svg";
 import { type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
+import { GLASS_FRAME } from "../util/glass";
+import { SETTINGS_INITIAL_HEIGHT, SETTINGS_POPOVER_ID, SETTINGS_WIDTH } from "../settings/settingsPopover";
 
 export function createSettingsAction(language: Language) {
   OBR.tool.createAction({
@@ -20,16 +22,14 @@ export function createSettingsAction(language: Language) {
     ],
     onClick(_, elementId) {
       OBR.popover.open({
-        id: getPluginId("popover/settings"),
+        id: SETTINGS_POPOVER_ID,
         url: "/settings.html",
-        width: 350,
-        // Grew to fit the preset selector + tab strip + tallest tab's
-        // content (Medición: calc mode, tolerance, and now the icon-stack
-        // Visualización controls). The tab body scrolls internally past
-        // this, so it's not a hard limit — just an estimate pending
-        // empirical tuning live in a room, since popover height is fixed
-        // at open time and can't be measured from code.
-        height: 480,
+        // The page draws its own translucent panel (GlassFrame), with a
+        // margin and border around it, and then resizes its height to fit
+        // whichever tab is showing (see Settings.tsx).
+        width: SETTINGS_WIDTH + GLASS_FRAME,
+        height: SETTINGS_INITIAL_HEIGHT + GLASS_FRAME,
+        hidePaper: true,
         anchorElementId: elementId,
         anchorOrigin: {
           horizontal: "CENTER",

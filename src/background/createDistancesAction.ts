@@ -6,9 +6,9 @@ import { translate } from "../i18n/translate";
 import { type DistancePanelAccess } from "../settings/globalSettings";
 import { toggleDistancesPanel, watchDistancesPanel } from "../distances/panelPopover";
 
-// Registered once at load, like the Altura menu: the SDK can't change an
-// action's role filter later, so who gets the button only changes on a
-// reload. The panel itself re-checks the setting live (see DistancePanel).
+// Registered again whenever who gets it changes (see toolbar.ts), and
+// removed when it's turned off. The panel itself also re-checks the setting
+// live (see DistancePanel), for anyone who still has it open.
 export function createDistancesAction(language: Language, access: DistancePanelAccess) {
   if (access === "off") {
     return;

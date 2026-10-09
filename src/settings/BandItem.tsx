@@ -101,7 +101,9 @@ export function BandItem({
       value={band.radius}
       onChange={(value) => onChange({ ...band, radius: value })}
       autoComplete="off"
-      sx={{ width: "86px" }}
+      // Wide enough for a three-digit radius plus its unit ("300 ft"); the
+      // icon and delete buttons beside it are kept tight to make the room.
+      sx={{ width: "100px", flexShrink: 0 }}
       slotProps={{
         input: {
           endAdornment: (
@@ -138,7 +140,7 @@ export function BandItem({
         my: 0.5,
         pl: 1,
         pr: 0.5,
-        gap: onChange ? 1 : 0.5,
+        gap: 0.5,
         py: onChange ? 0 : "1px",
       }}
       disablePadding
@@ -183,7 +185,7 @@ export function BandItem({
         />
       )}
       {onDelete && (
-        <IconButton size="small" onClick={onDelete}>
+        <IconButton size="small" onClick={onDelete} sx={{ p: 0.25 }}>
           <CloseRounded />
         </IconButton>
       )}

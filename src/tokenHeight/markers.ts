@@ -10,11 +10,11 @@ import { getPluginId } from "../util/getPluginId";
 import { isPlainObject } from "../util/isPlainObject";
 import { getColorString } from "../util/color";
 import { getStoredTheme, Theme } from "../theme/themes";
-import { Band, BandSet } from "../engine/types";
+import { Band, BandSet, IconShape } from "../engine/types";
 import { buildIconStackCommands, getStrokeWidthRatio, Direction } from "../render/iconStack";
 import { computeIconAnchor } from "../render/iconAnchor";
-import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
-import { languageFromMetadata } from "../i18n/language";
+import { bandSetFromMetadata } from "../bandSets/bandSets";
+import { displayFromMetadata, type MarkerTuning } from "../settings/display";
 import { deepEqual } from "../util/deepEqual";
 import { globalSettingsFromMetadata, type MarkerStyle } from "../settings/globalSettings";
 
@@ -66,23 +66,35 @@ export async function getActiveBandSet(): Promise<BandSet> {
   return (await getActiveMarkerConfig()).bandSet;
 }
 
-/** Everything a marker's look depends on that lives in scene metadata — one round trip for both. */
-async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; style: MarkerStyle }> {
-  const sceneMetadata = await OBR.scene.getMetadata();
-  const language = languageFromMetadata(sceneMetadata);
-  const rawBandSet = (sceneMetadata[getPluginId("bandSet")] ??
-    getDefaultBandSets(language)[0]) as BandSet;
+/** Everything about a marker's look that's a room setting rather than its Banda's. */
+export type MarkerLook = {
+  style: MarkerStyle;
+  /** The room's icon shape; a Banda's own iconShape overrides it. */
+  iconShape: IconShape;
+  tuning: MarkerTuning;
+};
+
+/** The marker look from already-fetched scene metadata. */
+export function markerLookFromMetadata(metadata: Record<string, unknown>): MarkerLook {
+  const display = displayFromMetadata(metadata);
   return {
-    bandSet: resolveBandSet(rawBandSet, language),
-    style: globalSettingsFromMetadata(sceneMetadata).markerStyle ?? "icons",
+    style: globalSettingsFromMetadata(metadata).markerStyle ?? "icons",
+    iconShape: display.iconShape,
+    tuning: display.marker,
   };
+}
+
+/** Everything a marker's look depends on that lives in scene metadata — one round trip for both. */
+async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; look: MarkerLook }> {
+  const sceneMetadata = await OBR.scene.getMetadata();
+  return { bandSet: bandSetFromMetadata(sceneMetadata), look: markerLookFromMetadata(sceneMetadata) };
 }
 
 // In the "label" style the marker is still there (it's what stores the
 // token's height, and what the label is drawn from) — just invisible.
 const MARKER_STROKE_OPACITY = 0.65;
-function markerOpacity(style: MarkerStyle): number {
-  return style === "label" ? 0 : 1;
+function markerOpacity(look: MarkerLook): number {
+  return look.style === "label" ? 0 : look.tuning.opacity;
 }
 
 /** Mutates a marker draft's geometry/color/anchor/metadata in place. Shared by setTokenHeightMarker's update path and refreshAllTokenHeightMarkers, so both apply the exact same derivation. */
@@ -92,21 +104,18 @@ function applyMarkerGeometry(
   band: Band,
   bandIndex: number,
   direction: Direction,
-  bandSet: BandSet,
   theme: Theme,
   dpi: number,
-  style: MarkerStyle
+  look: MarkerLook
 ): void {
-  const shape = band.iconShape ?? bandSet.iconShape ?? "circle";
-  const position = bandSet.iconPosition ?? "top";
-  const size = bandSet.iconSize ?? 1;
-  const iconDistance = bandSet.iconDistance ?? 0.15;
+  const shape = band.iconShape ?? look.iconShape;
+  const { position, size, distance } = look.tuning;
   marker.commands = buildIconStackCommands(shape, bandIndex + 1, dpi, size, position, direction);
   marker.style.fillColor = getColorString(theme.colors[bandIndex % theme.colors.length]);
   marker.style.strokeWidth = dpi * getStrokeWidthRatio(shape);
-  marker.style.fillOpacity = markerOpacity(style);
-  marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(style);
-  marker.position = computeIconAnchor(token, dpi, position, iconDistance);
+  marker.style.fillOpacity = markerOpacity(look);
+  marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(look);
+  marker.position = computeIconAnchor(token, dpi, position, distance);
   marker.visible = token.visible;
   marker.name = `Daggerheight: ${band.name} (${direction})`;
   marker.metadata[METADATA_KEY] = { bandId: band.id, direction } as TokenHeightState;
@@ -117,25 +126,22 @@ function buildTokenHeightMarker(
   band: Band,
   bandIndex: number,
   direction: Direction,
-  bandSet: BandSet,
   theme: Theme,
   dpi: number,
-  style: MarkerStyle
+  look: MarkerLook
 ): Path {
-  const shape = band.iconShape ?? bandSet.iconShape ?? "circle";
-  const position = bandSet.iconPosition ?? "top";
-  const size = bandSet.iconSize ?? 1;
-  const iconDistance = bandSet.iconDistance ?? 0.15;
+  const shape = band.iconShape ?? look.iconShape;
+  const { position, size, distance } = look.tuning;
   const commands = buildIconStackCommands(shape, bandIndex + 1, dpi, size, position, direction);
   const color = getColorString(theme.colors[bandIndex % theme.colors.length]);
   const item = buildPath()
     .commands(commands)
     .fillColor(color)
-    .fillOpacity(markerOpacity(style))
+    .fillOpacity(markerOpacity(look))
     .strokeColor("#111827")
-    .strokeOpacity(MARKER_STROKE_OPACITY * markerOpacity(style))
+    .strokeOpacity(MARKER_STROKE_OPACITY * markerOpacity(look))
     .strokeWidth(dpi * getStrokeWidthRatio(shape))
-    .position(computeIconAnchor(token, dpi, position, iconDistance))
+    .position(computeIconAnchor(token, dpi, position, distance))
     .attachedTo(token.id)
     .layer("ATTACHMENT")
     .locked(true)
@@ -185,14 +191,14 @@ export async function setTokenHeightMarker(
   knownBandSet?: BandSet,
   knownDpi?: number,
   knownExisting?: Path[],
-  knownStyle?: MarkerStyle
+  knownLook?: MarkerLook
 ): Promise<Path[]> {
   if (tokens.length === 0) {
     return [];
   }
-  const [{ bandSet, style }, dpi] =
-    knownBandSet !== undefined && knownDpi !== undefined && knownStyle !== undefined
-      ? [{ bandSet: knownBandSet, style: knownStyle }, knownDpi]
+  const [{ bandSet, look }, dpi] =
+    knownBandSet !== undefined && knownDpi !== undefined && knownLook !== undefined
+      ? [{ bandSet: knownBandSet, look: knownLook }, knownDpi]
       : await Promise.all([getActiveMarkerConfig(), OBR.scene.grid.getDpi()]);
   const bandIndex = bandSet.bands.findIndex((band) => band.id === bandId);
   const band = bandSet.bands[bandIndex];
@@ -223,7 +229,7 @@ export async function setTokenHeightMarker(
           if (!token) {
             continue;
           }
-          applyMarkerGeometry(marker, token, band, bandIndex, direction, bandSet, theme, dpi, style);
+          applyMarkerGeometry(marker, token, band, bandIndex, direction, theme, dpi, look);
         }
       }
     );
@@ -232,7 +238,7 @@ export async function setTokenHeightMarker(
   const newMarkers = tokens
     .filter((token) => !tokensWithExisting.has(token.id))
     .map((token) =>
-      buildTokenHeightMarker(token, band, bandIndex, direction, bandSet, theme, dpi, style)
+      buildTokenHeightMarker(token, band, bandIndex, direction, theme, dpi, look)
     );
   if (newMarkers.length > 0) {
     await OBR.scene.items.addItems(newMarkers);
@@ -278,7 +284,7 @@ export async function clearAllTokenHeightMarkers(): Promise<void> {
  * for every connected client instead of just updating smoothly.
  */
 export async function refreshAllTokenHeightMarkers(): Promise<void> {
-  const [{ bandSet, style }, dpi, markers] = await Promise.all([
+  const [{ bandSet, look }, dpi, markers] = await Promise.all([
     getActiveMarkerConfig(),
     OBR.scene.grid.getDpi(),
     getAllTokenHeightMarkers(),
@@ -312,7 +318,7 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
     if (!band) {
       return;
     }
-    applyMarkerGeometry(marker, token, band, bandIndex, state.direction, bandSet, theme, dpi, style);
+    applyMarkerGeometry(marker, token, band, bandIndex, state.direction, theme, dpi, look);
   };
   const changedIds = markers
     .filter((marker) => {

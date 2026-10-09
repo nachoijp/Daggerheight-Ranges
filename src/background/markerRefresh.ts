@@ -1,14 +1,11 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { getPluginId } from "../util/getPluginId";
-import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
-import { BandSet } from "../engine/types";
-import { languageFromMetadata } from "../i18n/language";
+import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
-import { refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
+import { markerLookFromMetadata, refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
 
 // Keeps the persistent height markers in step with what they're drawn from
-// (the Bandas, the language their names come in, the marker style, the
-// color theme), without flooding Owlbear with writes. It used to rewrite
+// (the Bandas, the language their names come in, the room's marker look,
+// the color theme), without flooding Owlbear with writes. It used to rewrite
 // every marker on every scene metadata change — any extension's, or
 // Owlbear's own — from every connected client at once, which ran into
 // Owlbear's rate limit ("Too many requests", 2026-10-08) and crowded out
@@ -25,13 +22,11 @@ let dirty = false;
 
 /** Everything in scene metadata a marker's look depends on. */
 function markerSignature(metadata: Record<string, unknown>): string {
-  const language = languageFromMetadata(metadata);
-  const bandSet = resolveBandSet(
-    (metadata[getPluginId("bandSet")] ?? getDefaultBandSets(language)[0]) as BandSet,
-    language
-  );
-  const settings = globalSettingsFromMetadata(metadata);
-  return JSON.stringify([bandSet, settings.enableAltitude ?? true, settings.markerStyle ?? "icons"]);
+  return JSON.stringify([
+    bandSetFromMetadata(metadata),
+    globalSettingsFromMetadata(metadata).enableAltitude ?? true,
+    markerLookFromMetadata(metadata),
+  ]);
 }
 
 /** One refresh at a time; a request landing mid-refresh gets one more pass after it. */

@@ -1,6 +1,7 @@
 import OBR from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
 import { isPlainObject } from "../util/isPlainObject";
+import type { StoredDisplaySettings } from "./display";
 
 /**
  * Room-wide, GM-configured settings from the Global tab (aside from
@@ -39,6 +40,10 @@ export type GlobalSettings = {
    * label, or both. In "label" the marker item stays (it's what stores the
    * height) but is drawn fully transparent. Missing = "icons". */
   markerStyle?: MarkerStyle;
+  /** How things look on the map (Mapa and Altura tabs) — see display.ts.
+   * enableLecturas and showLecturaDistance above are only read as fallbacks
+   * for a room that hasn't set display.lecturaStyle/lecturaLabel yet. */
+  display?: StoredDisplaySettings;
   /** Who gets the Distancias panel's toolbar button. Registered once at
    * load, like the Altura menu, so a change needs a room reload. */
   distancePanel?: DistancePanelAccess;
@@ -84,7 +89,9 @@ function isGlobalSettings(value: unknown): value is GlobalSettings {
     (value.distancePanel === undefined ||
       value.distancePanel === "off" ||
       value.distancePanel === "gm" ||
-      value.distancePanel === "everyone")
+      value.distancePanel === "everyone") &&
+    // Each field inside is checked (and falls back) on its own in resolveDisplay.
+    (value.display === undefined || isPlainObject(value.display))
   );
 }
 

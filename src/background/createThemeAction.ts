@@ -3,6 +3,7 @@ import { getPluginId } from "../util/getPluginId";
 import themeIcon from "../assets/theme.svg";
 import { type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
+import { GLASS_FRAME } from "../util/glass";
 
 export function createThemeAction(language: Language) {
   OBR.tool.createAction({
@@ -21,8 +22,11 @@ export function createThemeAction(language: Language) {
       OBR.popover.open({
         id: getPluginId("popover/theme"),
         url: "/theme.html",
-        width: 240,
-        height: 240,
+        // The page draws its own translucent frames (GlassFrame) around
+        // the theme list.
+        width: 240 + GLASS_FRAME,
+        height: 240 + GLASS_FRAME,
+        hidePaper: true,
         anchorElementId: elementId,
         anchorOrigin: {
           horizontal: "CENTER",

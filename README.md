@@ -32,27 +32,35 @@ Right-click any token to set a persistent height marker that sticks around outsi
 
 ## Build your own ranges
 
+![A built-in preset, ready to duplicate](docs/screenshots/presets.png)
+
 ![Editing a custom set of ranges](docs/screenshots/custom-ranges.png)
 
-![Picking a preset](docs/screenshots/presets.png)
+Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build your own: name each range, set its radius and icon, add or delete ranges, and pick the rings' shape, the calculation mode (spherical / cubic / cylindrical) and how forgiving Tolerance is.
 
-Start from Dagger, Steel, or Dragons, or build your own — name each range, set its radius, reorder, or delete it.
+## What shows on the map
 
-## Measurement settings
+![Map settings](docs/screenshots/map-tab.png)
 
-![Calculation mode and tolerance](docs/screenshots/measurement-tab.png)
+How each measured token is marked (an icon, a ring, a circle, or nothing), with its size and opacity under Advanced; what its label says (the Range, the exact distance, or both); what the rings around the Origin say; and an optional filter that highlights the tokens within a chosen Range. These are room settings, so they work with any set of ranges, presets included.
 
-![Visualization mode](docs/screenshots/visualization-modes.png)
+## Height
 
-Choose how distance is calculated (spherical / cubic / cylindrical), how forgiving Tolerance is, and how each Reading is drawn (icon / ring / circle).
+![Height settings](docs/screenshots/height-tab.png)
 
-## Global settings
+Turn the whole height feature on or off, show markers as icons, as a "⬆️ 30ft" label, or both, pick the icon shape, fine-tune the marker's position, size, opacity and distance under Advanced, and set the hotkeys that raise or lower the Origin while measuring.
 
-![Language and readings toggle](docs/screenshots/global-tab.png)
+## Distances panel
 
-![Hotkeys and height toggles](docs/screenshots/global-tab-hotkeys.png)
+![Distances panel next to tokens with height markers](docs/screenshots/distances-panel.png)
 
-Set the room's language and hotkeys, and toggle whole feature groups on or off — including stripping the extension back to plain range-rings with no readings or height tracking. This is also where the exact-distance labels, the height marker style, and who gets the Distances panel are set; their defaults keep the extension looking the way it always has until you change them.
+Pick or select a token to list every other one with its Range and its horizontal, vertical and total distance, live as tokens move. It stays open while you work on the map. The GM decides whether it's for the GM only or for everyone; players never see hidden tokens.
+
+## General
+
+![General settings](docs/screenshots/general-tab.png)
+
+The room's language, the key that activates Measurement, and who gets the Distances panel. Every setting applies right away — no reload needed — and their defaults keep the extension looking the way it always has until you change them.
 
 ## Color-blind themes
 

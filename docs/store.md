@@ -54,22 +54,36 @@ and optional persistent height markers.
 
 ## Build your own ranges
 
-Start from Dagger, Steel, or Dragons, or build your own — name each range,
-set its radius, reorder, or delete it. Choose how distance is calculated
-(spherical / cubic / cylindrical), how forgiving Tolerance is, and how each
-Reading is drawn (icon / ring / circle).
+Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build
+your own: name each range, set its radius and icon, and choose how distance
+is calculated (spherical / cubic / cylindrical) and how forgiving Tolerance
+is.
 
 ![Editing a custom set of ranges](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/custom-ranges.png)
 
-![Visualization modes](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/visualization-modes.png)
+## What shows on the map
 
-## Global settings
+How each measured token is marked (an icon, a ring, a circle, or nothing),
+what its label says (the Range, the exact distance, or both), and what the
+rings around the Origin say — with any set of ranges, presets included.
+
+![Map settings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/map-tab.png)
+
+## Distances panel
+
+Pick a token to list every other one with its Range and its horizontal,
+vertical and total distance, live as tokens move — for the GM only or for
+everyone; players never see hidden tokens.
+
+![Distances panel](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/distances-panel.png)
+
+## Settings
 
 Set the room's language and hotkeys, and toggle whole feature groups on or
 off — including stripping the extension back to plain range-rings with no
-readings or height tracking.
+readings or height tracking. Every setting applies right away.
 
-![Global settings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/global-tab.png)
+![General settings](https://raw.githubusercontent.com/nachoijp/Daggerheight-Ranges/main/docs/screenshots/general-tab.png)
 
 ## Color-blind themes
 

@@ -15,6 +15,9 @@ import Tooltip from "@mui/material/Tooltip";
 import Close from "@mui/icons-material/Close";
 
 import { useTranslation } from "../i18n/useTranslation";
+import { GLASS_FRAME } from "../util/glass";
+import { roomBelow } from "../util/roomBelow";
+import { viewportReaches } from "../util/menuRoom";
 import { languageFromMetadata } from "../i18n/language";
 import { getPluginId } from "../util/getPluginId";
 import { getColorString } from "../util/color";
@@ -28,6 +31,7 @@ import { computeDistanceRows, tokenName } from "./rows";
 import {
   DISTANCES_POPOVER_ID,
   PANEL_MAX_HEIGHT,
+  PANEL_TOP,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
   closeDistancesPanel,
@@ -52,33 +56,15 @@ const headSx = {
 // only when the content is too tall to fit and the page has to scroll.
 const PANEL_PADDING_WIDTH = 16;
 const SCROLLBAR_WIDTH = 14;
+// The glass frames around the content (see GlassFrame): the popover is
+// this much bigger than the content it fits.
+const FRAME = GLASS_FRAME;
 // Rough room the open dropdown list needs: where it starts (just under the
 // select) plus one row per option, the "pick a token" one included.
 const MENU_TOP = 64;
 const MENU_ITEM_HEIGHT = 40;
 const menuHeight = (options: number) => MENU_TOP + (options + 1) * MENU_ITEM_HEIGHT;
 
-/** Resolves once Owlbear has actually resized this popover's frame (or after a short wait regardless). */
-function viewportReaches(height: number) {
-  return new Promise<void>((resolve) => {
-    if (window.innerHeight >= height - 2) {
-      resolve();
-      return;
-    }
-    const done = () => {
-      window.removeEventListener("resize", onResize);
-      clearTimeout(timeout);
-      resolve();
-    };
-    const onResize = () => {
-      if (window.innerHeight >= height - 2) {
-        done();
-      }
-    };
-    const timeout = setTimeout(done, 300);
-    window.addEventListener("resize", onResize);
-  });
-}
 const THUMB_SIZE = 24;
 
 /** The token's own image, small — many tokens show no name on the map, so this is how they're recognized here. */
@@ -120,6 +106,7 @@ export function DistancePanel() {
   const [originId, setOriginId] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const panelSize = useRef({ width: PANEL_MIN_WIDTH, height: 0 });
   // The dropdown list opens inside the popover and sizes itself to the room
   // there is at the moment it opens, so the popover grows to fit it first
@@ -127,6 +114,15 @@ export function DistancePanel() {
   // between, so a re-render meanwhile doesn't shrink the popover back.
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWanted = useRef(false);
+  // As tall as the screen allows below the panel's top, rather than a fixed max.
+  const [maxHeight, setMaxHeight] = useState(PANEL_MAX_HEIGHT);
+  useEffect(() => {
+    roomBelow(PANEL_TOP).then((room) => {
+      if (room !== null) {
+        setMaxHeight(Math.max(menuHeight(1), room));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -199,18 +195,25 @@ export function DistancePanel() {
       return;
     }
     const contentHeight = Math.ceil(content.getBoundingClientRect().height);
-    const height = Math.min(
-      PANEL_MAX_HEIGHT,
-      Math.max(contentHeight, menuOpen || menuWanted.current ? menuHeight(tokens.length) : 0)
-    );
-    const scrollbar = contentHeight > PANEL_MAX_HEIGHT ? SCROLLBAR_WIDTH : 0;
+    const height =
+      Math.min(
+        maxHeight,
+        Math.max(contentHeight, menuOpen || menuWanted.current ? menuHeight(tokens.length) : 0)
+      ) + FRAME;
+    const scrollbar = contentHeight > maxHeight ? SCROLLBAR_WIDTH : 0;
+    // Only scrolls when the content really is taller than the panel can get;
+    // otherwise the scrollbar flashed while Owlbear caught up with a resize.
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowY = scrollbar ? "auto" : "hidden";
+    }
     const natural = tableRef.current?.getBoundingClientRect().width;
-    const width = natural
-      ? Math.min(
-          PANEL_MAX_WIDTH,
-          Math.max(PANEL_MIN_WIDTH, Math.ceil(natural) + PANEL_PADDING_WIDTH + scrollbar)
-        )
-      : PANEL_MIN_WIDTH;
+    const width =
+      (natural
+        ? Math.min(
+            PANEL_MAX_WIDTH,
+            Math.max(PANEL_MIN_WIDTH, Math.ceil(natural) + PANEL_PADDING_WIDTH + scrollbar)
+          )
+        : PANEL_MIN_WIDTH) + FRAME;
     if (Math.abs(width - panelSize.current.width) > 2) {
       panelSize.current.width = width;
       OBR.popover.setWidth(DISTANCES_POPOVER_ID, width);
@@ -223,7 +226,7 @@ export function DistancePanel() {
 
   async function openMenu() {
     menuWanted.current = true;
-    const needed = Math.min(PANEL_MAX_HEIGHT, menuHeight(tokens.length));
+    const needed = Math.min(maxHeight, menuHeight(tokens.length)) + FRAME;
     if (needed > panelSize.current.height + 2) {
       panelSize.current.height = needed;
       await OBR.popover.setHeight(DISTANCES_POPOVER_ID, needed);
@@ -279,7 +282,7 @@ export function DistancePanel() {
   // scrollbar style (settings/index.css) deliberately leaves the page's own
   // scrollbar alone.
   return (
-    <div style={{ height: "100vh", overflowY: "auto" }}>
+    <div ref={scrollRef} style={{ height: "100%", overflowY: "hidden" }}>
       <Stack ref={contentRef} sx={{ p: 1, gap: 1 }}>
         <Stack direction="row" alignItems="center" gap={0.5}>
           <Select
@@ -302,7 +305,9 @@ export function DistancePanel() {
               </MenuItem>
             ))}
           </Select>
-          <Tooltip title={t("distances.close")}>
+          {/* To the side: with no token picked the panel is a single row,
+              with no room above or below it for the tooltip. */}
+          <Tooltip title={t("distances.close")} placement="left">
             <IconButton
               size="small"
               aria-label={t("distances.close")}

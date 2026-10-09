@@ -10,11 +10,14 @@ export function HotkeyRecorder({
   value,
   onChange,
   reservedLetters,
+  ariaLabel,
 }: {
   label: string;
   value: string;
   onChange: (letter: string) => void;
   reservedLetters: string[];
+  /** The button's accessible name when there's no visible label above it. */
+  ariaLabel?: string;
 }) {
   const [recording, setRecording] = useState(false);
   const t = useTranslation();
@@ -48,13 +51,16 @@ export function HotkeyRecorder({
 
   return (
     <Stack alignItems="center" gap={0.25}>
-      <Typography variant="caption" sx={{ textAlign: "center" }}>
-        {label}
-      </Typography>
+      {label && (
+        <Typography variant="caption" sx={{ textAlign: "center" }}>
+          {label}
+        </Typography>
+      )}
       <Button
         variant="outlined"
         size="small"
         onClick={() => setRecording(true)}
+        aria-label={ariaLabel}
         sx={{ minWidth: 72 }}
       >
         {recording ? t("settings.global.hotkeyRecording") : value}

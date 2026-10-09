@@ -1,15 +1,9 @@
 import OBR from "@owlbear-rodeo/sdk";
-import { createMeasureTool } from "./createMeasureTool";
-import { createThemeAction } from "./createThemeAction";
-import { createSettingsAction } from "./createSettingsAction";
-import { createTokenHeightMenu } from "./createTokenHeightMenu";
 import { syncSettings } from "./syncSettings";
 import { startMeasureMirrorReceiver } from "./measureMirror";
 import { startHeightOverlays } from "./heightOverlays";
-import { createDistancesAction } from "./createDistancesAction";
 import { startMarkerRefresh } from "./markerRefresh";
-import { languageFromMetadata } from "../i18n/language";
-import { globalSettingsFromMetadata } from "../settings/globalSettings";
+import { registerToolbar, watchToolbar } from "./toolbar";
 
 async function waitUntilOBRReady() {
   return new Promise<void>((resolve) => {
@@ -79,26 +73,16 @@ async function init() {
   syncSettings();
   startMeasureMirrorReceiver();
 
-  // Toolbar icon labels, the Medición tool's own activation shortcut, and
-  // whether the Altura context menu is registered at all are set once here
-  // — like BandSet's own early phases, none of this live-updates if the GM
-  // changes it later without a reload (the SDK has no "update this
-  // action/mode's label or shortcut" call, nor a way to unregister a
-  // context menu once created). Bounded-wait for real scene metadata so
-  // the common case (a Scene exists, just hasn't finished loading yet)
-  // still gets correct per-room language/hotkeys, without blocking
-  // registration forever in a Room that has no Scene at all.
+  // Toolbar labels, the Medición tool's activation shortcut, and which of
+  // the extension's buttons/menus exist come from the scene's settings —
+  // and follow them live from then on (see toolbar.ts). Bounded-wait for
+  // real scene metadata so the common case (a Scene exists, just hasn't
+  // finished loading yet) registers with the right language and hotkeys
+  // straight away, without blocking registration forever in a Room that
+  // has no Scene at all (defaults until one opens).
   const sceneReady = await waitUntilSceneReady(SCENE_READY_TIMEOUT_MS);
-  const metadata = sceneReady ? await OBR.scene.getMetadata() : {};
-  const language = languageFromMetadata(metadata);
-  const globalSettings = globalSettingsFromMetadata(metadata);
-  createMeasureTool(language, globalSettings);
-  createThemeAction(language);
-  createSettingsAction(language);
-  createDistancesAction(language, globalSettings.distancePanel ?? "off");
-  if ((globalSettings.enableAltitude ?? true) && globalSettings.showAltitudeMenu) {
-    createTokenHeightMenu(language);
-  }
+  registerToolbar(sceneReady ? await OBR.scene.getMetadata() : {});
+  watchToolbar();
 
   // Height markers are real Scene items — unlike the toolbar registration
   // above, there is nothing useful to fall back to without a Scene, so both

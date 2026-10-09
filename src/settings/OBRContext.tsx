@@ -4,6 +4,7 @@ import { getPluginId } from "../util/getPluginId";
 import { getDefaultBandSets, customBandSetsFromMetadata, resolveBandSet } from "../bandSets/bandSets";
 import { BandSet } from "../engine/types";
 import { Language, languageFromMetadata, setLanguage as persistLanguage } from "../i18n/language";
+import { displayFromMetadata, type DisplaySettings } from "./display";
 
 type OBRContextValue = {
   gridScale: GridScale;
@@ -15,6 +16,8 @@ type OBRContextValue = {
   // Settings.tsx" pattern would be worth threading through.
   language: Language;
   onChangeLanguage: (language: Language) => void;
+  /** The room's display settings as of when this page loaded (the settings tabs keep their own live copy). */
+  display: DisplaySettings;
 };
 
 const OBRContext = createContext<OBRContextValue | null>(null);
@@ -42,6 +45,7 @@ export function OBRContextProvider({
     null
   );
   const [language, setLanguageState] = useState<Language | null>(null);
+  const [display, setDisplay] = useState<DisplaySettings | null>(null);
   useEffect(() => {
     let mounted = true;
     OBR.scene.getMetadata().then((metadata) => {
@@ -52,6 +56,7 @@ export function OBRContextProvider({
         setBandSet(resolveBandSet(rawBandSet, language));
         setCustomBandSets(customBandSetsFromMetadata(metadata));
         setLanguageState(language);
+        setDisplay(displayFromMetadata(metadata));
       }
     });
     return () => {
@@ -68,13 +73,13 @@ export function OBRContextProvider({
     persistLanguage(next);
   }
 
-  if (!gridScale || !bandSet || !customBandSets || !language) {
+  if (!gridScale || !bandSet || !customBandSets || !language || !display) {
     return null;
   }
 
   return (
     <OBRContext.Provider
-      value={{ gridScale, bandSet, customBandSets, language, onChangeLanguage }}
+      value={{ gridScale, bandSet, customBandSets, language, onChangeLanguage, display }}
     >
       {children}
     </OBRContext.Provider>

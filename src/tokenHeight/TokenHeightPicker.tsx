@@ -40,7 +40,7 @@ const DIRECTION_COL_WIDTH = 20;
 const TABLE_BORDER_SPACING = 3;
 
 export function TokenHeightPicker() {
-  const { bandSet } = useOBRContext();
+  const { bandSet, display } = useOBRContext();
   const t = useTranslation();
   const [selection, setSelection] = useState<string[]>([]);
   const [current, setCurrent] = useState<{ bandId: string; direction: Direction } | undefined>();
@@ -144,7 +144,7 @@ export function TokenHeightPicker() {
               {markableBands.map(({ band, index }) => {
                 const active =
                   current?.bandId === band.id && current?.direction === direction.id;
-                const shape = band.iconShape ?? bandSet.iconShape ?? "circle";
+                const shape = band.iconShape ?? display.iconShape;
                 const color = getColorString(theme.colors[index % theme.colors.length]);
                 const svg = iconStackPreviewSvg(shape, index + 1, color, direction.id);
                 return (

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -7,8 +6,9 @@ import ListItemText from "@mui/material/ListItemText";
 import Tooltip from "@mui/material/Tooltip";
 import { IconShape } from "../engine/types";
 import { ICON_SHAPES } from "../render/iconStack";
-import { SHAPE_LABEL_KEYS, ShapePreview } from "./IconShapePicker";
+import { SHAPE_LABEL_KEYS, ShapePreview } from "./ShapePreview";
 import { useTranslation } from "../i18n/useTranslation";
+import { useRoomyMenu } from "../util/menuRoom";
 
 /** Per-Banda icon shape override — a compact trigger since BandItem's row has no room for a full Select. */
 export function BandIconShapeMenu({
@@ -24,7 +24,7 @@ export function BandIconShapeMenu({
   onChange: (value: IconShape | undefined) => void;
   disabled?: boolean;
 }) {
-  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
+  const menu = useRoomyMenu<HTMLElement>();
   const effectiveShape = value ?? defaultShape;
   const t = useTranslation();
 
@@ -34,19 +34,20 @@ export function BandIconShapeMenu({
         <span>
           <IconButton
             size="small"
+            sx={{ p: 0.25 }}
             disabled={disabled}
-            onClick={(e) => setAnchor(e.currentTarget)}
+            onClick={(e) => menu.open(e.currentTarget)}
           >
             <ShapePreview shape={effectiveShape} />
           </IconButton>
         </span>
       </Tooltip>
-      <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
+      <Menu anchorEl={menu.anchor} open={menu.isOpen} onClose={menu.close}>
         <MenuItem
           selected={value === undefined}
           onClick={() => {
             onChange(undefined);
-            setAnchor(null);
+            menu.close();
           }}
         >
           <ListItemIcon sx={{ minWidth: 32 }}>
@@ -60,7 +61,7 @@ export function BandIconShapeMenu({
             selected={value === shape}
             onClick={() => {
               onChange(shape);
-              setAnchor(null);
+              menu.close();
             }}
           >
             <ListItemIcon sx={{ minWidth: 32 }}>
