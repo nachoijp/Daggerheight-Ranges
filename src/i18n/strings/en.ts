@@ -168,6 +168,7 @@ const en: Record<TranslationKey, string> = {
   "distances.totalTooltip":
     "The full distance, combining horizontal and vertical per the calculation mode. It's what decides the Range, and the same number the Reading shows.",
   "distances.sameHeight": "Same height",
+  "distances.measureFrom": "Measure from {name}",
   "distances.close": "Close",
   "distances.above": "{distance} higher",
   "distances.below": "{distance} lower",

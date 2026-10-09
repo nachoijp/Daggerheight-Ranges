@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import IconButton from "@mui/material/IconButton";
+import ButtonBase from "@mui/material/ButtonBase";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -362,7 +363,15 @@ export function DistancePanel() {
                       return (
                         <TableRow key={row.token.id}>
                           <TableCell sx={cellSx}>
-                            <TokenLabel token={row.token} />
+                            {/* Clicking another token measures from it instead. */}
+                            <ButtonBase
+                              onClick={() => setOriginId(row.token.id)}
+                              aria-label={t("distances.measureFrom", { name: tokenName(row.token) })}
+                              title={t("distances.measureFrom", { name: tokenName(row.token) })}
+                              sx={{ borderRadius: 999, pr: 0.75, textAlign: "left", font: "inherit" }}
+                            >
+                              <TokenLabel token={row.token} />
+                            </ButtonBase>
                           </TableCell>
                           <TableCell sx={{ ...cellSx, whiteSpace: "nowrap" }}>
                             <Stack direction="row" alignItems="center" gap={0.75}>
@@ -405,6 +414,8 @@ export function DistancePanel() {
                             </>
                           )}
                           <TableCell sx={{ ...cellSx, whiteSpace: "nowrap", fontWeight: 600 }} align="right">
+                            {/* Same arrow as the Vert. column, so it reads on its own too (and with no height columns). */}
+                            {row.heightDifference > 0 ? "↑ " : row.heightDifference < 0 ? "↓ " : ""}
                             {distanceText(row.distance)}
                           </TableCell>
                         </TableRow>

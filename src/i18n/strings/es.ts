@@ -166,6 +166,7 @@ const es = {
   "distances.totalTooltip":
     "La distancia completa, combinando horizontal y vertical según el modo de cálculo. Es la que decide la Banda y la misma que muestra la Lectura.",
   "distances.sameHeight": "Misma altura",
+  "distances.measureFrom": "Medir desde {name}",
   "distances.close": "Cerrar",
   "distances.above": "{distance} más arriba",
   "distances.below": "{distance} más abajo",
