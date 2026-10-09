@@ -18,3 +18,15 @@ export async function roomBelow(top: number): Promise<number | null> {
     return null;
   }
 }
+
+/** Space left free on the right of a popover, so it never runs off the screen's side (a phone held upright). */
+const SIDE_GAP = 16;
+
+/** The widest content a glass popover whose left edge sits `left` px in can have. null if Owlbear doesn't answer. */
+export async function roomBeside(left: number): Promise<number | null> {
+  try {
+    return (await OBR.viewport.getWidth()) - left - SIDE_GAP - GLASS_FRAME;
+  } catch {
+    return null;
+  }
+}

@@ -17,7 +17,7 @@ import Close from "@mui/icons-material/Close";
 
 import { useTranslation } from "../i18n/useTranslation";
 import { GLASS_FRAME } from "../util/glass";
-import { roomBelow } from "../util/roomBelow";
+import { roomBelow, roomBeside } from "../util/roomBelow";
 import { viewportReaches } from "../util/menuRoom";
 import { getColorString } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
@@ -30,6 +30,7 @@ import {
   DISTANCES_POPOVER_ID,
   PANEL_MAX_HEIGHT,
   PANEL_TOP,
+  PANEL_LEFT,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
   closeDistancesPanel,
@@ -112,12 +113,19 @@ export function DistancePanel() {
   // between, so a re-render meanwhile doesn't shrink the popover back.
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWanted = useRef(false);
-  // As tall as the screen allows below the panel's top, rather than a fixed max.
+  // As tall as the screen allows below the panel's top, and no wider than
+  // the screen (a phone held upright), rather than fixed bounds.
   const [maxHeight, setMaxHeight] = useState(PANEL_MAX_HEIGHT);
+  const [maxWidth, setMaxWidth] = useState(PANEL_MAX_WIDTH);
   useEffect(() => {
     roomBelow(PANEL_TOP).then((room) => {
       if (room !== null) {
         setMaxHeight(Math.max(menuHeight(1), room));
+      }
+    });
+    roomBeside(PANEL_LEFT).then((room) => {
+      if (room !== null) {
+        setMaxWidth(Math.min(PANEL_MAX_WIDTH, room));
       }
     });
   }, []);
@@ -205,13 +213,12 @@ export function DistancePanel() {
       scrollRef.current.style.overflowY = scrollbar ? "auto" : "hidden";
     }
     const natural = tableRef.current?.getBoundingClientRect().width;
-    const width =
-      (natural
-        ? Math.min(
-            PANEL_MAX_WIDTH,
-            Math.max(PANEL_MIN_WIDTH, Math.ceil(natural) + PANEL_PADDING_WIDTH + scrollbar)
-          )
-        : PANEL_MIN_WIDTH) + FRAME;
+    const wanted = natural ? Math.ceil(natural) + PANEL_PADDING_WIDTH + scrollbar : 0;
+    const width = Math.min(maxWidth, Math.max(PANEL_MIN_WIDTH, wanted)) + FRAME;
+    // A table wider than the screen allows scrolls sideways instead.
+    if (scrollRef.current) {
+      scrollRef.current.style.overflowX = wanted > maxWidth ? "auto" : "hidden";
+    }
     if (Math.abs(width - panelSize.current.width) > 2) {
       panelSize.current.width = width;
       OBR.popover.setWidth(DISTANCES_POPOVER_ID, width);

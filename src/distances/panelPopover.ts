@@ -10,6 +10,8 @@ export const PANEL_MAX_WIDTH = 560;
 export const PANEL_MAX_HEIGHT = 600;
 /** Where the panel's top sits (see anchorPosition below). */
 export const PANEL_TOP = 72;
+/** Where the panel's left edge sits. */
+export const PANEL_LEFT = 16;
 // Only until the panel has measured its content and resized to fit it.
 const PANEL_INITIAL_HEIGHT = 160;
 
@@ -66,7 +68,7 @@ export async function toggleDistancesPanel() {
     // right on top of the tokens it lists. The offset clears Owlbear's own
     // top bar — an estimate, like the other popovers' sizes.
     anchorReference: "POSITION",
-    anchorPosition: { left: 16, top: PANEL_TOP },
+    anchorPosition: { left: PANEL_LEFT, top: PANEL_TOP },
     anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
     transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
     disableClickAway: true,
