@@ -2,19 +2,11 @@ import { Command } from "@owlbear-rodeo/sdk";
 import type { PathCommand } from "@owlbear-rodeo/sdk";
 import { Direction, IconPosition, IconShape } from "../engine/types";
 
-// Ported from owlbear-daggerheart-altitude/src/altitude.ts. That module
-// tracks an UP/DOWN "direction" (a token's altitude above/below baseline),
-// used to pick which end of a stack is biggest and, for wingDrill, which of
-// two baked art assets to draw. The ephemeral Lectura (phase 4) has no such
-// axis, so `direction` defaults to "up" there and is only ever passed
-// explicitly by the persistent per-token height markers (phase 5), which do
-// have a real up/down distinction.
+// The stacked icons of height markers and icon-style Lecturas: one icon per
+// Banda step. `direction` (up/down) decides which end of a tapered stack is
+// bigger, which way a stack is nudged, and, for the feather/shovel shape,
+// which art is drawn.
 
-// Re-exported so existing importers (markers.ts, TokenHeightPicker.tsx,
-// createMeasureTool.ts) don't need to change — Direction now lives in
-// engine/types.ts alongside IconPosition/IconShape since a later feature
-// (per-token height step actions) needs it from a pure engine module with
-// no SDK dependency, which this file (Command/PathCommand) isn't.
 export type { Direction };
 
 interface Point {

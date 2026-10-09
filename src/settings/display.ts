@@ -30,10 +30,9 @@ export type MarkerTuning = {
 };
 
 /**
- * How the extension looks on the map — room-wide, edited from the Mapa and
- * Altura tabs. It used to live on each BandSet, which locked it for the
- * built-in presets (their Medición tab couldn't be edited) and changed the
- * whole look whenever another set was picked.
+ * How the extension looks on the map — a room setting, edited from the
+ * Medidas and Altura tabs, the same whichever set of Bandas is picked
+ * (built-in presets included).
  */
 export type DisplaySettings = {
   lecturaStyle: LecturaStyle;

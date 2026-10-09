@@ -1,7 +1,6 @@
 import OBR, { type GridScale } from "@owlbear-rodeo/sdk";
 import { createContext, useContext, useState, useEffect } from "react";
-import { getPluginId } from "../util/getPluginId";
-import { getDefaultBandSets, customBandSetsFromMetadata, resolveBandSet } from "../bandSets/bandSets";
+import { bandSetFromMetadata, customBandSetsFromMetadata, resolveBandSet } from "../bandSets/bandSets";
 import { BandSet } from "../engine/types";
 import { Language, languageFromMetadata, setLanguage as persistLanguage } from "../i18n/language";
 import { displayFromMetadata, type DisplaySettings } from "./display";
@@ -51,9 +50,7 @@ export function OBRContextProvider({
     OBR.scene.getMetadata().then((metadata) => {
       if (mounted) {
         const language = languageFromMetadata(metadata);
-        const rawBandSet = (metadata[getPluginId("bandSet")] ??
-          getDefaultBandSets(language)[0]) as BandSet;
-        setBandSet(resolveBandSet(rawBandSet, language));
+        setBandSet(bandSetFromMetadata(metadata));
         setCustomBandSets(customBandSetsFromMetadata(metadata));
         setLanguageState(language);
         setDisplay(displayFromMetadata(metadata));

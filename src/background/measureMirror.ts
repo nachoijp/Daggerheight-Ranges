@@ -10,35 +10,24 @@ import {
   type LecturaState,
 } from "../render/lecturaItems";
 
-// Shows a Medición's non-positional visuals — the gradient shader, the
-// Lecturas, and the height label — on every client, not just the one
-// measuring.
+// Shows a Medición's gradient, Lecturas and height label to every client,
+// not just the one measuring.
 //
-// Why not just put them in the band interaction like the rings: an
-// interaction only syncs *position* changes to other clients (confirmed
-// live 2026-09-30 — text/color/commands patches never arrive), and EFFECT
-// items can't go through an interaction at all. So:
-//
-// - Everything here is client-local (OBR.scene.local) on every client.
-// - Anything that has to follow the moving rings on other clients (shader,
-//   height label) is attachedTo a synced ring. Owlbear then moves it with
-//   the ring in the same frame — no per-move messages, no drift (confirmed
-//   live). The move is render-only: the local item's stored position never
-//   changes, so it can't be read back.
-// - Lecturas sit on the measured tokens, which don't move during a
-//   Medición, so only their content changes: the measuring client sends a
-//   LecturaState only when one actually changes, coalesced to respect
-//   OBR.broadcast's undocumented server-side rate limit.
+// The rings travel in an interaction, but an interaction only syncs
+// position changes (not text, color or shape), and the gradient's shaders
+// can't go in one at all. So:
+// - Everything here is client-local (OBR.scene.local), on every client.
+// - What follows the moving rings (gradient, height label) is attachedTo a
+//   ring, and Owlbear moves it along. That move is render-only: the item's
+//   stored position never changes.
+// - Lecturas sit on tokens that don't move, so only their content changes:
+//   the measuring client broadcasts a Lectura's state only when it changes.
 
 const CHANNEL = getPluginId("measureMirror");
-// OBR.broadcast rejects bursts at the same cadence the interaction sync
-// tolerates (RateLimitHit) — found in the 2026-09-24 shader-sync attempt,
-// which sent every ~16ms. That attempt settled on 150ms, but it sent
-// continuously; here a message only goes out when a Lectura actually
-// changes, so a shorter gap is tried first — the first change after a
-// quiet moment always goes out immediately, this only spaces out bursts.
-// If Owlbear still rate-limits it, back off for the rest of the session
-// and resend what was lost.
+// OBR.broadcast rejects bursts ("RateLimitHit"). Messages only go out when
+// something changed, and bursts are spaced this far apart; if Owlbear still
+// rate-limits, the gap widens for the rest of the session and what was
+// lost is sent again.
 const SEND_INTERVAL_MS = 80;
 const BACKOFF_SEND_INTERVAL_MS = 200;
 let sendIntervalMs = SEND_INTERVAL_MS;

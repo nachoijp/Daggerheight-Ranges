@@ -4,48 +4,28 @@ import { isPlainObject } from "../util/isPlainObject";
 import type { StoredDisplaySettings } from "./display";
 
 /**
- * Room-wide, GM-configured settings from the Global tab (aside from
- * language, which already has its own dedicated metadata slot). Bundled
- * into one object/key since they're all edited together on the same tab.
+ * The room's settings, edited by the GM from Opciones (the language has its
+ * own metadata key). Every optional field is missing from rooms saved
+ * before it existed, and falls back as noted.
  */
 export type GlobalSettings = {
-  /** Single uppercase letter — also used directly as ToolMode's `shortcut`. */
+  /** Single uppercase letters; hotkeyActivate is the Medición tool's shortcut. */
   hotkeyActivate: string;
   hotkeyRaise: string;
   hotkeyLower: string;
-  /** Whether the "Altura" right-click context menu is registered at all —
-   * only takes effect when enableAltitude is also true. */
+  /** Whether the "Altura" right-click option exists (only with enableAltitude). */
   showAltitudeMenu: boolean;
-  /** Whether Lecturas (per-token readings — icon/ring/circle + label,
-   * whichever the Bandas' own Visualización is set to) are shown during a
-   * Medición. The tool itself, its activation shortcut, and the Bandas
-   * rings/gradient always stay — this only strips the per-token reading
-   * layer, leaving plain Ranges-style distance rings. Optional so a
-   * GlobalSettings object saved before this field existed still validates —
-   * missing = true. */
+  /** Only a fallback for display.lecturaStyle/lecturaLabel (false = no Lecturas). Missing = true. */
   enableLecturas?: boolean;
-  /** Master switch for the whole altitude/height mechanic — the Z/X
-   * hotkeys, the height label during a Medición, and persistent per-token
-   * markers, on top of (not instead of) showAltitudeMenu's own menu-only
-   * toggle. Off = the extension behaves like plain Ranges (no altitude
-   * concept at all). Optional for the same reason as enableMedicion above —
-   * missing = true. */
+  /** The height feature: markers, Z/X, the height label. Off = plain distance rings. Missing = true. */
   enableAltitude?: boolean;
-  /** Adds each token's exact distance (grid units) to its Lectura label.
-   * Lives here rather than on the BandSet so it also works with the
-   * built-in presets, whose Medición options can't be edited. Missing =
-   * false, like every display option below. */
+  /** Only a fallback for display.lecturaLabel. Missing = false. */
   showLecturaDistance?: boolean;
-  /** How a persistent height marker shows: its icon stack, a "⬆️ 30ft"
-   * label, or both. In "label" the marker item stays (it's what stores the
-   * height) but is drawn fully transparent. Missing = "icons". */
+  /** How height markers show. In "label" the marker stays (it stores the height) but is transparent. Missing = "icons". */
   markerStyle?: MarkerStyle;
-  /** How things look on the map (Mapa and Altura tabs) — see display.ts.
-   * enableLecturas and showLecturaDistance above are only read as fallbacks
-   * for a room that hasn't set display.lecturaStyle/lecturaLabel yet. */
+  /** How things look on the map (see display.ts). */
   display?: StoredDisplaySettings;
-  /** Who gets the Distancias panel's toolbar button. Registered once at
-   * load, like the Altura menu, so a change needs a room reload. */
+  /** Who gets the Distancias panel's toolbar button. Missing = "off". */
   distancePanel?: DistancePanelAccess;
 };
 

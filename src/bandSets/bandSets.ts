@@ -51,31 +51,10 @@ export function customBandSetsFromMetadata(
   return Array.isArray(stored) ? stored.filter(isBandSet) : [];
 }
 
-/** Custom BandSets are stored per-room so every player/GM sees the same presets. */
-export async function getCustomBandSets(): Promise<BandSet[]> {
-  try {
-    return customBandSetsFromMetadata(await OBR.scene.getMetadata());
-  } catch (error) {
-    console.warn(
-      "Failed to read custom band sets from scene metadata:",
-      error
-    );
-    return [];
-  }
-}
-
 export async function setCustomBandSets(bandSets: BandSet[]): Promise<void> {
   try {
     await OBR.scene.setMetadata({ [getPluginId("bandSets")]: bandSets });
   } catch (error) {
     console.warn("Failed to save custom band sets to scene metadata:", error);
   }
-}
-
-export function getBandSet(
-  id: string,
-  customBandSets: BandSet[],
-  language: Language
-): BandSet | undefined {
-  return [...customBandSets, ...getDefaultBandSets(language)].find((b) => b.id === id);
 }

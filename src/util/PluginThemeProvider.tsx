@@ -72,13 +72,8 @@ function getTheme(theme?: Theme) {
           },
           switchBase: {
             padding: 1,
-            // Was MUI v4's JSS class-composition syntax ("&$checked" etc.),
-            // which never matches anything under v5 — the checked-state
-            // transform/color/track overrides silently never applied, so a
-            // checked switch fell back to MUI's own built-in default
-            // transform (sized for MUI's default 58×38 switch), badly
-            // misaligned against this theme's custom 42×26 root + 24×24
-            // thumb. Fixed to the real v5 selector.
+            // The checked thumb's travel, sized for this theme's 42×26
+            // switch (MUI's own default is sized for 58×38).
             "&.Mui-checked": {
               transform: "translateX(16px)",
               color: "#fff",

@@ -11,7 +11,7 @@ export type IconPosition = "left" | "right" | "top" | "bottom";
 /** How a Lectura is drawn on the measured token. */
 export type Visualization = "icon" | "ring" | "circle";
 
-/** The silhouette used for a Lectura's icon stack, ported from Daggerheight 1.x. */
+/** The silhouette of the icons in a stack. */
 export type IconShape =
   | "triangle"
   | "triangleStepped"
@@ -37,22 +37,21 @@ export type BandSet = {
   shape: BandShape;
   metric: DistanceMetric;
   bands: Band[];
+  /** Extra margin for a token to count as inside a Banda, percent 0-100 of a grid cell (see effectiveDistance). Missing = DEFAULT_TOLERANCE. */
+  tolerance?: number;
+
+  // How things look used to be part of each set. It's a room setting now
+  // (settings/display.ts); these are only read as its fallbacks, so rooms
+  // from before keep their look, and the built-in presets still define them.
   hideLabel?: boolean;
   hideSize?: boolean;
-  /** Integer percent 0-100; extra margin added on top of real geometric
-   * contact between the Origen and target tokens (0 = none, 100 = up to a
-   * full extra grid unit) — real contact itself always counts regardless of
-   * this value. See effectiveDistance in engine/distance.ts. Missing =
-   * DEFAULT_TOLERANCE (50). */
-  tolerance?: number;
-  /** Lectura icon-stack look. Missing on older BandSets — default circle/top/1/0.15. */
   iconShape?: IconShape;
   iconPosition?: IconPosition;
   /** 0.5-2 */
   iconSize?: number;
   /** 0-0.4, fraction of grid dpi */
   iconDistance?: number;
-  /** How the Lectura draws on the token. Missing = "icon" (phase 4/5 default). */
+  /** How the Lectura draws on the token. Missing = "icon". */
   visualization?: Visualization;
   /** Show a text Banda-name pill alongside whichever visualization is active. Missing = false. */
   showLabel?: boolean;
@@ -60,11 +59,6 @@ export type BandSet = {
   ringWidth?: number;
   /** Circle mode's fill opacity, 0-1. Missing = 0.35. */
   circleOpacity?: number;
-  /** Dims (or, for labels, hides) any Lectura farther than the filterBandId
-   * Banda's own radius, so tokens within it stand out against the rest.
-   * Missing = false. */
   filterEnabled?: boolean;
-  /** id of the Banda whose radius is used as the Filtro's max distance.
-   * Only meaningful when filterEnabled is true. */
   filterBandId?: string;
 };

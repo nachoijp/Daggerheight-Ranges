@@ -28,13 +28,9 @@ export function LabeledSlider({
   marks?: { value: number; label: string }[];
   valueLabelFormat?: (value: number) => string;
 }) {
-  // Dragging fires MUI's onChange continuously (every pixel of movement) —
-  // wiring that straight to the onChange prop meant every tick of a drag
-  // called OBR.scene.setMetadata, a real network round trip, dozens of
-  // times per second. Buffer locally for a smooth-looking drag (matches
-  // NumberField's own local-value-until-commit pattern elsewhere in this
-  // tab) and only call the prop once, on release/keyup, via
-  // onChangeCommitted.
+  // MUI fires onChange on every pixel of a drag; each call of the prop is
+  // a scene write. The value is kept here while dragging and only passed
+  // on once, when the slider is let go (onChangeCommitted).
   const [localValue, setLocalValue] = useState(value);
   useEffect(() => {
     setLocalValue(value);
@@ -67,11 +63,8 @@ export function LabeledSlider({
         size="small"
         disabled={disabled}
         sx={{
-          // Mark labels are centered on their point by default, so the
-          // first ("0%") and last ("100%") ones hang half their width past
-          // the track's own edges — with nothing after them to clip against,
-          // that pushed the whole popover wider and forced a horizontal
-          // scrollbar. Edge-align just those two instead of centering them.
+          // The first and last mark labels are aligned to the track's
+          // edges instead of centered, so they don't stick out past it.
           "& .MuiSlider-markLabel[data-index='0']": {
             transform: "translateX(0%)",
           },

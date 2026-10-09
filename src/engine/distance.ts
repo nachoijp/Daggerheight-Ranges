@@ -37,16 +37,10 @@ export function excessRadius(radius: number): number {
 export const DEFAULT_TOLERANCE = 50;
 
 /**
- * Distance adjusted for both tokens' real size and an extra Tolerancia
- * margin, t in [0, 1]. Unlike the original single-radius design, the
- * excess-radius correction (see excessRadius) is applied unconditionally,
- * always in full — true body-to-body contact is detected regardless of
- * what Tolerancia is set to, it's never gated behind the slider. Tolerancia
- * is a genuinely separate, additive margin on top of that: 0% adds none
- * (only true contact counts); 100% adds a full extra grid unit of slack
- * beyond true contact. It can no longer make a Lectura *stricter* than
- * plain geometry (no more "penalize excess size" mode at 0%) — Tolerancia
- * now only ever adds generosity, never subtracts it.
+ * The distance a Banda is matched against: the center distance minus both
+ * tokens' excess bulk (so tokens that touch always count as touching) and
+ * minus the Tolerancia margin `tolerance` (0-1 grid cells), which only
+ * ever makes tokens count as closer.
  */
 export function effectiveDistance(
   centerDistance: number,

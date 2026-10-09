@@ -19,13 +19,10 @@ import { useTranslation } from "../i18n/useTranslation";
 import { GLASS_FRAME } from "../util/glass";
 import { roomBelow } from "../util/roomBelow";
 import { viewportReaches } from "../util/menuRoom";
-import { languageFromMetadata } from "../i18n/language";
-import { getPluginId } from "../util/getPluginId";
 import { getColorString } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
 import { getStoredTheme } from "../theme/themes";
-import { BandSet } from "../engine/types";
-import { getDefaultBandSets, resolveBandSet } from "../bandSets/bandSets";
+import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { isTokenHeightMarker, tokenHeightsFromMarkers } from "../tokenHeight/markers";
 import { computeDistanceRows, tokenName } from "./rows";
@@ -257,11 +254,7 @@ export function DistancePanel() {
     );
   }
 
-  const language = languageFromMetadata(metadata);
-  const bandSet = resolveBandSet(
-    (metadata[getPluginId("bandSet")] ?? getDefaultBandSets(language)[0]) as BandSet,
-    language
-  );
+  const bandSet = bandSetFromMetadata(metadata);
   const altitude = settings.enableAltitude ?? true;
   const heights = altitude
     ? tokenHeightsFromMarkers(items.filter(isTokenHeightMarker), bandSet)

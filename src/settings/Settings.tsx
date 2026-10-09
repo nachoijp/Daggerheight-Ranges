@@ -292,8 +292,7 @@ export function Settings() {
         <Tab label={t("settings.tab.general")} sx={tabSx} />
       </Tabs>
       {/* Never scrolls sideways: a slider's thumb and value label poke a few
-          pixels past its track at the ends, which used to add a horizontal
-          scrollbar to the whole tab. */}
+          pixels past its track at the ends. */}
       <Stack ref={bodyRef} sx={{ overflowY: "auto", overflowX: "hidden", flexGrow: 1, pb: 1 }}>
         <div ref={contentRef}>
         {tab === 0 && (

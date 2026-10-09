@@ -26,11 +26,9 @@ export interface TokenBounds {
 }
 
 /**
- * A token's on-screen top-left corner and rendered size, in scene units.
- * Ported from owlbear-daggerheart-altitude/src/markers.ts's tokenBounds.
- * Shared by anything that needs to anchor or size itself relative to a
- * token's actual footprint rather than just its center point (which
- * grid.offset can put anywhere within the image).
+ * A token's on-screen top-left corner and rendered size, in scene units —
+ * its real footprint, which its position (placed by grid.offset anywhere in
+ * the image) doesn't give on its own.
  */
 export function getTokenBounds(token: Image, dpi: number): TokenBounds {
   const dpiScale = dpi / token.grid.dpi;
@@ -50,13 +48,7 @@ export function getTokenBounds(token: Image, dpi: number): TokenBounds {
   };
 }
 
-/**
- * Anchor just outside a token's real footprint, on the configured side,
- * accounting for its image size, grid offset, and scale. Ported from
- * owlbear-daggerheart-altitude/src/markers.ts's computeAnchor. Shared by the
- * ephemeral Lectura icons (phase 4) and the persistent per-token height
- * markers (phase 5), which both need the exact same math.
- */
+/** Where an icon stack starts: just outside the token's footprint, on the given side, `iconDistance` cells away. */
 export function computeIconAnchor(
   token: Image,
   dpi: number,

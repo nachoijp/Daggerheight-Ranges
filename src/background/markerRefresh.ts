@@ -3,17 +3,15 @@ import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { markerLookFromMetadata, refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
 
-// Keeps the persistent height markers in step with what they're drawn from
-// (the Bandas, the language their names come in, the room's marker look,
-// the color theme), without flooding Owlbear with writes. It used to rewrite
-// every marker on every scene metadata change — any extension's, or
-// Owlbear's own — from every connected client at once, which ran into
-// Owlbear's rate limit ("Too many requests", 2026-10-08) and crowded out
-// the Medición's own writes. Now:
-// - only the GM's client writes (markers are shared, one writer is
-//   enough — so they always carry the GM's color theme);
-// - only when something markers depend on actually changed;
-// - and refreshAllTokenHeightMarkers only writes the markers that differ.
+// Keeps the height markers in step with what they're drawn from (the
+// Bandas, the language of their names, the room's marker look, the color
+// theme) while writing as little as possible — Owlbear rate-limits writes
+// ("Too many requests"), and the Medición's own writes need the room:
+// - only the GM's client writes (markers are shared, so they carry the GM's
+//   color theme);
+// - only when something they depend on changed — not on every metadata
+//   change, which other extensions and Owlbear itself make too;
+// - and only the markers that come out different.
 
 let isGm = false;
 let lastSignature: string | null = null;

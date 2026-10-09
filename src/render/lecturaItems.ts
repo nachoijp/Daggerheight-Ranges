@@ -28,13 +28,9 @@ import {
   type DisplaySettings,
 } from "../settings/display";
 
-// Everything needed to draw a Lectura, independent of which client is
-// drawing it. The measuring client computes each token's LecturaState (the
-// distance math lives in createMeasureTool.ts); every client — including
-// the measuring one — turns those states into its own client-local items
-// here. Interaction items only sync position changes to other clients
-// (confirmed live 2026-09-30: text/color/commands patches never reach
-// them), so Lecturas can't ride the band interaction like the rings do.
+// Drawing a Lectura. The measuring client computes each token's
+// LecturaState (createMeasureTool.ts) and every client — itself included —
+// draws its own client-local items from it here (see measureMirror.ts).
 
 export type LecturaContext = {
   bandSet: BandSet;

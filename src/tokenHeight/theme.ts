@@ -1,11 +1,8 @@
 import OBR from "@owlbear-rodeo/sdk";
 import type { Theme } from "@owlbear-rodeo/sdk";
 
-// Ported from owlbear-daggerheart-altitude/src/theme.ts: this picker embed
-// uses plain CSS (tokenHeight.css) instead of the MUI theme the rest of the
-// extension's settings pages use, matching 1.x's own real picker UI as
-// closely as possible — so it needs the same "read OBR's theme into CSS
-// custom properties" bridge 1.x built, not MUI's ThemeProvider.
+// The Altura picker uses plain CSS (tokenHeight.css), not MUI like the
+// other pages, so Owlbear's theme reaches it as CSS custom properties.
 function applyTheme(theme: Theme) {
   const root = document.documentElement.style;
   root.setProperty("--obr-text-primary", theme.text.primary);

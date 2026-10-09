@@ -5,20 +5,16 @@ import { alpha, useTheme } from "@mui/material/styles";
 
 import { GLASS_BORDER, GLASS_MARGIN } from "./glass";
 
-// GM Notes' panel is two translucent frames: Owlbear's own (translucent,
-// blurred) paper filling its action popover, and GM Notes' panel at 20%
-// inside it, GLASS_MARGIN in from the edge. Owlbear's paper behind a
-// popover opened from OBR.popover.open is opaque instead (tried
-// 2026-10-08), so these popovers are opened with hidePaper and both frames
-// are drawn here. Drawing only GM Notes' 20% layer let the map show through
-// far too much.
+// The same look as GM Notes' panel: two translucent frames, an outer one
+// filling the popover and GM Notes' own panel at 20% inside it, GLASS_MARGIN
+// in. GM Notes gets the outer frame from Owlbear, but Owlbear's paper behind
+// an OBR.popover.open popover is opaque, so these popovers are opened with
+// hidePaper and both frames are drawn here.
 //
-// The outer frame's color and opacity were solved from screenshots of GM
-// Notes over a white and over a dark background (2026-10-08): GM Notes'
-// panel comes out 69% opaque, rgb(43, 47, 59) — matched by this gray at 62%
-// under the inner 20% layer. Only the outer frame blurs: a blurred layer
-// nested in another blurred one composited far more opaque than its own
-// values (87%).
+// The outer frame's color and opacity reproduce GM Notes' measured result
+// (69% opaque, rgb(43, 47, 59)) under the inner 20%. Only the outer frame
+// blurs: a blurred layer inside another blurred one comes out far more
+// opaque than its own values.
 /** Owlbear's own translucent popover paper, as measured in the dark theme. */
 const OUTER_DARK = "rgb(48, 52, 63)";
 const OUTER_OPACITY = 0.62;

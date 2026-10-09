@@ -17,11 +17,10 @@ const PANEL_INITIAL_HEIGHT = 160;
 // button) that it closed, over a broadcast that never leaves this client.
 const CLOSED_CHANNEL = getPluginId("distancesClosed");
 
-// Whether this client has the panel open. Tracked here rather than asked of
-// Owlbear: OBR.popover.getWidth never answers for a popover that isn't open
-// (it times out after 5s, seen live 2026-10-08) instead of returning
-// undefined. If it's ever wrong (the panel closed some other way), the
-// button just needs one extra click.
+// Whether this client has the panel open. Tracked here because Owlbear
+// can't tell: OBR.popover.getWidth never answers for a closed popover (it
+// times out after 5s). If it's ever wrong (the panel closed some other
+// way), the button just needs one extra click.
 let open = false;
 
 /** Background script: keeps `open` in step with the panel's own ✕. */

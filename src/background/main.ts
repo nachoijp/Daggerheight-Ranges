@@ -13,25 +13,12 @@ async function waitUntilOBRReady() {
   });
 }
 
-// OBR.onReady() only guarantees the SDK bridge itself is ready — it does
-// NOT guarantee a scene has finished loading. Calling OBR.scene.* too early
-// (right after onReady, before a scene exists) throws
-// `MissingDataError: "No scene found"` — confirmed live 2026-09-24, this
-// was the actual root cause of the extension silently failing to register
-// its toolbar icons on a page reload (the error was thrown from an
-// unawaited/uncaught init() call, so it never surfaced anywhere visible).
-// syncSettings.ts already had the correct wait-for-scene pattern; init()
-// just never used it.
-//
-// A Room with no Scene ever open is a separate, equally valid state (see
-// Owlbear's extension-verification guidelines: "Valid configurations
-// include a Room with a Scene open and no Scene open") — waiting
-// unconditionally for scene-ready would then hang forever and the toolbar
-// icons would never appear. `timeoutMs` distinguishes the two: omitted, the
-// wait is unbounded (safe to leave dangling if a Scene never arrives, same
-// as syncSettings.ts's own indefinite onReadyChange subscription); passed,
-// it resolves `false` if no Scene becomes ready in time, letting the caller
-// fall back to defaults instead of blocking registration indefinitely.
+/**
+ * Waits for a scene: OBR.onReady() doesn't mean one has loaded, and
+ * OBR.scene.* throws ("No scene found") until it has. A room with no scene
+ * open is valid too, so with `timeoutMs` this gives up after that long and
+ * resolves false.
+ */
 async function waitUntilSceneReady(timeoutMs?: number): Promise<boolean> {
   if (await OBR.scene.isReady()) {
     return true;
@@ -61,11 +48,8 @@ async function waitUntilSceneReady(timeoutMs?: number): Promise<boolean> {
   });
 }
 
-// Matches @owlbear-rodeo/sdk's own default RPC timeout (MessageBus.js's
-// sendAsync, found while debugging the original reload bug) — long enough
-// that a Scene which is genuinely just mid-load (the normal reload case)
-// always resolves well within it, short enough that a scene-less Room
-// doesn't leave the user staring at a toolbar with no icons for long.
+// The SDK's own call timeout: plenty for a scene that's still loading, short
+// enough that a room with no scene doesn't wait long for its toolbar.
 const SCENE_READY_TIMEOUT_MS = 5000;
 
 async function init() {
@@ -73,20 +57,13 @@ async function init() {
   syncSettings();
   startMeasureMirrorReceiver();
 
-  // Toolbar labels, the Medición tool's activation shortcut, and which of
-  // the extension's buttons/menus exist come from the scene's settings —
-  // and follow them live from then on (see toolbar.ts). Bounded-wait for
-  // real scene metadata so the common case (a Scene exists, just hasn't
-  // finished loading yet) registers with the right language and hotkeys
-  // straight away, without blocking registration forever in a Room that
-  // has no Scene at all (defaults until one opens).
+  // The toolbar follows the scene's settings (see toolbar.ts); with no scene
+  // yet, it starts from the defaults.
   const sceneReady = await waitUntilSceneReady(SCENE_READY_TIMEOUT_MS);
   registerToolbar(sceneReady ? await OBR.scene.getMetadata() : {});
   watchToolbar();
 
-  // Height markers are real Scene items — unlike the toolbar registration
-  // above, there is nothing useful to fall back to without a Scene, so both
-  // of these simply wait until (if ever) a Scene actually loads.
+  // These work on scene items, so they wait for a scene themselves.
   startMarkerRefresh().catch((error) => {
     console.error("Daggerheight: failed to start height marker refresh", error);
   });

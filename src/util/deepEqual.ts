@@ -1,11 +1,7 @@
 /**
- * Structural equality, insensitive to object key order. Plain
- * `JSON.stringify(a) === JSON.stringify(b)` (used previously for
- * detecting an edited-but-unsaved BandSet) breaks the moment either side's
- * keys were inserted in a different order — e.g. after a round trip through
- * the scene metadata store, or when a spread pattern appends a newly added
- * optional field — even though the two objects are otherwise identical,
- * producing a false "out of sync" warning.
+ * Structural equality, insensitive to key order — unlike comparing
+ * JSON.stringify output, which differs once keys come back from the scene
+ * metadata, or a spread adds one, in another order.
  */
 export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) {

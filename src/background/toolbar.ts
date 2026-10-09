@@ -10,11 +10,9 @@ import { createDistancesAction } from "./createDistancesAction";
 
 // Everything this extension adds to Owlbear's own UI — the Medición mode,
 // the toolbar actions, the Altura context menu — registered from the
-// current scene's settings, and registered again whenever those change
-// (the language of their labels, the activation shortcut, which of them
-// exist at all). These used to be registered once at load, so any change
-// needed a room reload. Re-registering an id replaces it; whatever is
-// turned off is removed.
+// current scene's settings, and again whenever those change (the labels'
+// language, the activation key, which of them exist), so no change needs a
+// reload. Registering an id again replaces it; what's turned off is removed.
 
 let lastSignature: string | null = null;
 

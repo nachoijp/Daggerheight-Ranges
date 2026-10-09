@@ -62,10 +62,6 @@ export async function getAllTokenHeightMarkers(): Promise<Path[]> {
   return OBR.scene.items.getItems<Path>(isTokenHeightMarker);
 }
 
-export async function getActiveBandSet(): Promise<BandSet> {
-  return (await getActiveMarkerConfig()).bandSet;
-}
-
 /** Everything about a marker's look that's a room setting rather than its Banda's. */
 export type MarkerLook = {
   style: MarkerStyle;
@@ -97,7 +93,7 @@ function markerOpacity(look: MarkerLook): number {
   return look.style === "label" ? 0 : look.tuning.opacity;
 }
 
-/** Mutates a marker draft's geometry/color/anchor/metadata in place. Shared by setTokenHeightMarker's update path and refreshAllTokenHeightMarkers, so both apply the exact same derivation. */
+/** Sets a marker draft's shape, color, position and state in place (shared by updates and refreshes). */
 function applyMarkerGeometry(
   marker: Path,
   token: Image,
@@ -153,36 +149,15 @@ function buildTokenHeightMarker(
   return item;
 }
 
-// Rapid hotkey presses on the same token call this back-to-back. A marker
-// that already exists is mutated in place rather than deleted+recreated —
-// the same "don't rebuild what you can mutate" lesson the ephemeral
-// interaction items taught (phase 2), now on a real item: a fresh id on
-// every call meant an in-flight delete+add from an earlier, still-settling
-// call could land after a later one's, silently clobbering it back to a
-// stale height. Mutating leaves one stable item identity across the whole
-// drag, so there's nothing left for a late write to race against.
-//
-// knownBandSet/knownDpi/knownStyle let a caller that already has all three cached (the
-// Medición tool, for the whole duration of a drag) skip re-fetching them —
-// every OBR.scene.* call is a real postMessage round trip with its own 5s
-// timeout (no local caching in the SDK itself), and cutting two of those
-// round trips out of a call that a fast key-mashing burst can issue
-// several times in quick succession measurably lowers the odds of one
-// stalling. Same reasoning for knownExisting: a caller that already fetched
-// every token-height marker for an unrelated reason (the altitude step
-// actions already need the full list to compute each token's *current*
-// level) can pass it straight through instead of this doing its own
-// identical getItems() call a second time. All three are optional and the
-// picker's calls simply omit them, fetching fresh as before.
 /**
- * Returns the resulting marker for every token passed in (whichever of
- * existing/newMarkers ends up covering it) — not read back from the SDK
- * (updateItems/addItems return void), just the same objects this function
- * already built/fetched locally. Lets a caller that writes the same token
- * repeatedly in quick succession (the Medición tool's Z/X hotkeys) cache
- * "this token already has a marker" across calls via knownExisting instead
- * of paying for a fresh getItems every time — see
- * createMeasureTool.ts's writeOriginMarker.
+ * Sets the tokens' height marker. An existing marker is updated in place,
+ * never deleted and re-added: with a new id each time, a late write from
+ * an earlier call could land after a newer one and undo it.
+ *
+ * The known* arguments let a caller that already has them (the Medición
+ * tool, writing on every Z/X press) skip fetching them again — each fetch
+ * is a round trip. Returns each token's marker as built here, so the caller
+ * can pass it back as knownExisting next time.
  */
 export async function setTokenHeightMarker(
   tokens: Image[],
@@ -266,7 +241,7 @@ export async function clearTokenHeightMarker(
   }
 }
 
-/** Deletes every height marker in the scene, regardless of which token it's attached to — used when a GM turns off the whole altitude feature from the Global tab. */
+/** Deletes every height marker in the scene — when the GM turns the height feature off. */
 export async function clearAllTokenHeightMarkers(): Promise<void> {
   const markers = await getAllTokenHeightMarkers();
   if (markers.length > 0) {
@@ -275,13 +250,9 @@ export async function clearAllTokenHeightMarkers(): Promise<void> {
 }
 
 /**
- * Re-derives every existing marker's geometry/color/anchor from the current
- * BandSet/theme (a marker's Banda may have been renamed/recolored/resized,
- * or the token it's attached to may have moved/rescaled, since it was set).
- * Mutates in place rather than delete+recreate — same "don't rebuild what
- * you can mutate" lesson as the ephemeral interaction items, this time on
- * real persisted ones, where a delete+recreate would also flicker visibly
- * for every connected client instead of just updating smoothly.
+ * Redraws every marker from the current Bandas, look and theme (a Banda may
+ * have been renamed or resized since). Updated in place, so they don't
+ * flicker for everyone.
  */
 export async function refreshAllTokenHeightMarkers(): Promise<void> {
   const [{ bandSet, look }, dpi, markers] = await Promise.all([
@@ -312,9 +283,8 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
     }
     const bandIndex = bandSet.bands.findIndex((band) => band.id === state.bandId);
     const band = bandSet.bands[bandIndex];
-    // The band this marker points to was deleted — leave the marker as-is
-    // rather than deleting it, so a temporary Bandas edit doesn't silently
-    // wipe markers a GM already placed.
+    // Its Banda was deleted: left as is, so a passing Bandas edit doesn't
+    // wipe markers the GM placed.
     if (!band) {
       return;
     }

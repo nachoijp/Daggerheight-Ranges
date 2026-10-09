@@ -32,10 +32,7 @@ export function BandSetSelector({
   isEditing: boolean;
   isCustom: boolean;
   outdatedBandSet: boolean;
-  /** The edit/save toggle only gates the Bandas tab's fields — Medición's
-   * are always live-editable and Global has nothing to edit here at all, so
-   * showing a button that visibly does nothing on those tabs is confusing.
-   * The caller passes this based on which tab is currently active. */
+  /** The edit button only does something on the Bandas tab, so it's only shown there. */
   showEditButton: boolean;
 }) {
   const t = useTranslation();

@@ -31,10 +31,8 @@ const DIRECTION_LABEL_KEYS: Record<Direction, TranslationKey> = {
   down: "tokenHeight.down",
 };
 
-// Same sizing approach as owlbear-daggerheart-altitude/src/main.ts's
-// ICON_MIN_COLUMN_WIDTH/DIRECTION_COL_WIDTH/TABLE_BORDER_SPACING — a floor
-// for table-layout:fixed's equal column widths, so .picker-scroll's
-// horizontal scrollbar only kicks in once there wouldn't otherwise be room.
+// A minimum width for the table's equal columns, so it only scrolls
+// sideways when there really isn't room.
 const ICON_MIN_COLUMN_WIDTH = 44;
 const DIRECTION_COL_WIDTH = 20;
 const TABLE_BORDER_SPACING = 3;
@@ -99,12 +97,9 @@ export function TokenHeightPicker() {
 
   const theme = getStoredTheme();
 
-  // The closest Banda (e.g. Melee) means "right next to it" — marking a
-  // token's own height as "closest" is redundant, so it's left out of the
-  // picker (it still exists normally as a Lectura distance reading). Index
-  // is each band's position in bandSet.bands itself (not a separately
-  // sorted copy), matching how markers.ts's setTokenHeightMarker resolves
-  // it, so the icon preview here is exactly what actually gets placed.
+  // The closest Banda (e.g. Melee) means "right next to it", which makes no
+  // sense as a height, so it's left out. Each Banda keeps its index in
+  // bandSet.bands, as markers.ts uses it, so the preview matches the marker.
   const closestBand = bandSet.bands.reduce(
     (min, band) => (band.radius < min.radius ? band : min),
     bandSet.bands[0]

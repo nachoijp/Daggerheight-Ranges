@@ -15,14 +15,8 @@ export const SHAPE_LABEL_KEYS: Record<IconShape, TranslationKey> = {
 };
 
 export function ShapePreview({ shape }: { shape: IconShape }) {
-  // iconStackPreviewSvg's own <svg> has real width/height attributes sized
-  // to the stack's actual bounding box — for a 3-icon vertical stack that's
-  // much taller than wide, so left at its natural size it made whichever
-  // button hosted it (e.g. BandIconShapeMenu's trigger) balloon to match,
-  // looking oversized next to the same row's other, normally-sized
-  // controls. Forcing a fixed square box and letting the svg's own
-  // viewBox-driven scaling (preserveAspectRatio defaults to "meet") shrink
-  // to fit keeps every usage the same compact size regardless of shape.
+  // The preview svg is sized to its stack (a 3-icon column is tall), so
+  // it's fitted into a fixed square box: every preview stays the same size.
   const svg = iconStackPreviewSvg(shape, 3, "currentColor");
   return (
     <Box
