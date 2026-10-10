@@ -14,7 +14,7 @@ import {
 import { getPluginId } from "../util/getPluginId";
 import { getMetadata } from "../util/getMetadata";
 import { Color, Theme } from "../theme/themes";
-import { getColorString, getIconStrokeColor, getLabelTextStyle } from "../util/color";
+import { applyLabelTextStyle, getColorString, getIconStrokeColor } from "../util/color";
 import { BandSet } from "../engine/types";
 import { buildIconStackCommands, getStrokeWidthRatio, type Direction } from "./iconStack";
 import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "./iconAnchor";
@@ -114,21 +114,13 @@ export function getBandLabel(
   opacityScale = 1,
   scale = 1
 ) {
-  const fontSize = LABEL_FONT_SIZE * scale;
-  const textStyle = getLabelTextStyle(color, fontSize);
   const label = buildLabel()
-    .fillColor(textStyle.fillColor)
-    .fillOpacity(1.0 * opacityScale)
-    .fontWeight(textStyle.fontWeight)
-    .strokeColor(textStyle.strokeColor)
-    .strokeOpacity(textStyle.strokeOpacity * opacityScale)
-    .strokeWidth(textStyle.strokeWidth)
     .plainText(text)
     .position(Math2.subtract(center, offset))
     .pointerDirection("UP")
     .backgroundOpacity(0.8 * opacityScale)
     .backgroundColor(getColorString(color))
-    .fontSize(fontSize)
+    .fontSize(LABEL_FONT_SIZE * scale)
     .padding(8 * scale)
     .cornerRadius(20 * scale)
     .pointerHeight(0)
@@ -138,6 +130,7 @@ export function getBandLabel(
     .disableHit(true)
     .layer("POPOVER")
     .build();
+  applyLabelTextStyle(label, color, opacityScale);
   return followMap(label);
 }
 
@@ -353,13 +346,7 @@ export function applyLecturaState(
     const labelOpacity = state.withinFilter ? 1 : 0;
     const color = lecturaColorFor(state.index, theme);
     item.text.plainText = getLecturaLabelText(state, ctx);
-    const textStyle = getLabelTextStyle(color, item.text.style.fontSize);
-    item.text.style.fillColor = textStyle.fillColor;
-    item.text.style.fillOpacity = labelOpacity;
-    item.text.style.fontWeight = textStyle.fontWeight;
-    item.text.style.strokeColor = textStyle.strokeColor;
-    item.text.style.strokeOpacity = textStyle.strokeOpacity * labelOpacity;
-    item.text.style.strokeWidth = textStyle.strokeWidth;
+    applyLabelTextStyle(item, color, labelOpacity);
     item.style.backgroundColor = getColorString(color);
     item.style.backgroundOpacity = 0.8 * labelOpacity;
     return;

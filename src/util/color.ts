@@ -1,3 +1,4 @@
+import type { Label } from "@owlbear-rodeo/sdk";
 import { Color } from "../theme/themes";
 
 export function getColorString(color: Color) {
@@ -11,30 +12,22 @@ const LABEL_TEXT_STROKE_RATIO = 0.15;
 const LABEL_TEXT_WEIGHT = 400;
 const LABEL_DARK_TEXT_WEIGHT = 600;
 
-/** How a label's text is drawn over this background color. */
-export type LabelTextStyle = {
-  fillColor: string;
-  fontWeight: number;
-  strokeColor: string;
-  strokeOpacity: number;
-  strokeWidth: number;
-};
-
 /**
- * Black text on light backgrounds; white text on the rest, outlined in the
+ * Styles a label's text for its background color, at its current font size:
+ * black text on light backgrounds; white text on the rest, outlined in the
  * same dark shade as the icons so it stays legible on mid-light colors.
  */
-export function getLabelTextStyle(background: Color, fontSize: number): LabelTextStyle {
+export function applyLabelTextStyle(label: Label, background: Color, opacity: number) {
   // Luminance
   const brightness = (background.r * 299 + background.g * 587 + background.b * 114) / 1000;
   const white = brightness < 180;
-  return {
-    fillColor: white ? "white" : "black",
-    fontWeight: white ? LABEL_TEXT_WEIGHT : LABEL_DARK_TEXT_WEIGHT,
-    strokeColor: getIconStrokeColor(background),
-    strokeOpacity: white ? 1 : 0,
-    strokeWidth: fontSize * LABEL_TEXT_STROKE_RATIO,
-  };
+  const style = label.text.style;
+  style.fillColor = white ? "white" : "black";
+  style.fillOpacity = opacity;
+  style.fontWeight = white ? LABEL_TEXT_WEIGHT : LABEL_DARK_TEXT_WEIGHT;
+  style.strokeColor = getIconStrokeColor(background);
+  style.strokeOpacity = white ? opacity : 0;
+  style.strokeWidth = white ? style.fontSize * LABEL_TEXT_STROKE_RATIO : 0;
 }
 
 // How much of an icon's color its outline keeps.

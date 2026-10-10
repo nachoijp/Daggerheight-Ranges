@@ -8,7 +8,7 @@ import OBR, {
   type Path,
 } from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
-import { getColorString, getIconStrokeColor, getLabelTextStyle } from "../util/color";
+import { applyLabelTextStyle, getColorString, getIconStrokeColor } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
 import { getStoredTheme, THEME_STORAGE_KEYS } from "../theme/themes";
 import { BandSet, IconPosition } from "../engine/types";
@@ -131,23 +131,15 @@ function wantedLabel(
     signature,
     build: () => {
       const { position, pointer } = textPlacement(token, side, iconDistance, extent, gap);
-      const fontSize = LABEL_FONT_SIZE * size;
-      const textStyle = getLabelTextStyle(baseColor, fontSize);
       const label = buildLabel()
         .plainText(text)
         .position(position)
         .pointerDirection(pointer)
         .pointerHeight(0)
         // The marker's size setting scales the label like it does the icons
-        .fontSize(fontSize)
+        .fontSize(LABEL_FONT_SIZE * size)
         .padding(4 * size)
         .cornerRadius(12 * size)
-        .fillColor(textStyle.fillColor)
-        .fillOpacity(opacity)
-        .fontWeight(textStyle.fontWeight)
-        .strokeColor(textStyle.strokeColor)
-        .strokeOpacity(textStyle.strokeOpacity * opacity)
-        .strokeWidth(textStyle.strokeWidth)
         .backgroundColor(color)
         .backgroundOpacity(0.85 * opacity)
         .attachedTo(token.id)
@@ -156,6 +148,7 @@ function wantedLabel(
         .disableHit(true)
         .visible(token.visible)
         .build();
+      applyLabelTextStyle(label, baseColor, opacity);
       label.metadata[OVERLAY_KEY] = { tokenId: token.id };
       return followMap(label);
     },

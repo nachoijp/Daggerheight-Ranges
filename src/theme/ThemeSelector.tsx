@@ -9,7 +9,7 @@ import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import AddRounded from "@mui/icons-material/AddRounded";
 import RemoveRounded from "@mui/icons-material/RemoveRounded";
-import { useTheme } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 
 import {
   Color,
@@ -304,9 +304,23 @@ export function ThemeSelector() {
               value={theme.name}
               control={
                 <Radio
-                  color={
-                    muiTheme.palette.mode === "light" ? "default" : "secondary"
-                  }
+                  color="primary"
+                  sx={{
+                    // A see-through disc of Owlbear's own background behind the
+                    // circle, so the accent shows on any theme color the row has
+                    // behind it. It ends just inside the ring's outer edge (the
+                    // ring reaches 10 of the icon's 12 radius, ~83%; the disc
+                    // stops at 78–80%) so no rim of it shows, and it's
+                    // more solid in light mode, where a thin one looks washed out.
+                    // (The first span is the icon; the ripple is the last one.)
+                    "& > span:first-of-type": {
+                      backgroundImage: `radial-gradient(circle closest-side, ${alpha(
+                        muiTheme.palette.background.paper,
+                        muiTheme.palette.mode === "light" ? 0.85 : 0.6
+                      )} 78%, transparent 80%)`,
+                      filter: "drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))",
+                    },
+                  }}
                 />
               }
               label={theme.label}
@@ -321,8 +335,15 @@ export function ThemeSelector() {
               slotProps={{
                 typography: {
                   fontWeight: 500,
-                  // Readable over the brighter colors (yellow) the row shows behind it.
-                  textShadow: "0 1px 3px rgba(0, 0, 0, 0.7)",
+                  // Readable over the brighter colors (yellow) the row shows
+                  // behind it: a dark shadow under white text, a light glow
+                  // under the black text of Owlbear's light mode.
+                  sx: {
+                    textShadow:
+                      muiTheme.palette.mode === "light"
+                        ? "0 1px 3px rgba(255, 255, 255, 0.7)"
+                        : "0 1px 3px rgba(0, 0, 0, 0.7)",
+                  },
                 },
               }}
             />

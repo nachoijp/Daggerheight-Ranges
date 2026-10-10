@@ -109,9 +109,9 @@ async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; look: Marker
 // The marker in the scene is never drawn: it stores the token's height and
 // the shape of its icons, and every client draws the icons and label from
 // it in its own color theme (see heightOverlays.ts). It's the same whoever
-// writes it, so it has no color of its own.
-const MARKER_FILL = "#000000";
-const MARKER_STROKE_COLOR = "#111827";
+// writes it, so it has no color of its own: its fill and stroke are a
+// placeholder at zero opacity.
+const MARKER_COLOR = "#000000";
 export const MARKER_STROKE_OPACITY = 0.65;
 
 /** The color of the icons and label of a marker at this height, in a theme. */
@@ -146,7 +146,7 @@ function applyMarkerGeometry(
 ): void {
   const { commands, strokeWidth } = markerAppearance(height, bandSet, dpi, look);
   marker.commands = commands;
-  marker.style.fillColor = MARKER_FILL;
+  marker.style.fillColor = MARKER_COLOR;
   marker.style.strokeWidth = strokeWidth;
   marker.style.fillOpacity = 0;
   marker.style.strokeOpacity = 0;
@@ -166,9 +166,9 @@ function buildTokenHeightMarker(
   const { commands, strokeWidth } = markerAppearance(height, bandSet, dpi, look);
   return buildPath()
     .commands(commands)
-    .fillColor(MARKER_FILL)
+    .fillColor(MARKER_COLOR)
     .fillOpacity(0)
-    .strokeColor(MARKER_STROKE_COLOR)
+    .strokeColor(MARKER_COLOR)
     .strokeOpacity(0)
     .strokeWidth(strokeWidth)
     .position(computeIconAnchor(token, dpi, look.tuning.position, look.tuning.distance))

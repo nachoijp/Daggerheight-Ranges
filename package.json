@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc -p tsconfig.app.json && vite build",
     "preview": "vite preview",
-    "build:beta": "tsc && vite build --outDir dist-beta && node scripts/beta-manifest.mjs"
+    "build:beta": "tsc -p tsconfig.app.json && vite build --outDir dist-beta && node scripts/beta-manifest.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.1.11",
