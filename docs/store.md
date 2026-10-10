@@ -25,11 +25,13 @@ and optional persistent height markers.
   reveal concentric range bands (Melee, Very Close, Close, Far, Very Far — or
   your own).
 - **Height / altitude tracking** — right-click a token to set a persistent
-  height marker, or nudge height live with hotkeys while measuring. Readings
-  account for height in 3D, with a choice of spherical, cubic, or cylindrical
-  distance.
-- **Three built-in presets** — Dagger, Steel, and Dragons — or build your own
-  set of ranges from scratch.
+  height marker, or nudge height live with hotkeys while measuring, range by
+  range or one grid cell at a time. Readings account for height in 3D, with a
+  choice of spherical, cubic, or cylindrical distance, and big creatures take
+  up height too.
+- **Three built-in presets** — Dagger, Steel (Draw Steel's distances,
+  measured square by square), and Dragons — or build your own set of ranges
+  from scratch.
 - **Multiple visualization styles** — icon stacks, rings, or filled circles,
   independently sized and colored.
 - **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia, and
@@ -46,7 +48,7 @@ and optional persistent height markers.
 2. Every other token gets a live Reading showing which range band it's in,
    with an arrow if it's above or below you.
 3. While measuring, use the configurable hotkeys to raise or lower the
-   Origin's height.
+   Origin's height, or put it back on the ground.
 4. Right-click any token to set a persistent height marker that sticks around
    outside of a measurement.
 
@@ -56,8 +58,9 @@ and optional persistent height markers.
 
 Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build
 your own: name each range, set its radius and icon, and choose how distance
-is calculated (spherical / cubic / cylindrical) and how forgiving Tolerance
-is.
+is calculated (spherical / cubic / cylindrical), whether heights step by range
+or by grid cell, and how forgiving Tolerance is. An optional Final Range
+names everything past the farthest one.
 
 ![Editing a custom set of ranges](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/custom-ranges.png)
 
@@ -73,7 +76,8 @@ rings around the Origin say — with any set of ranges, presets included.
 
 Pick a token to list every other one with its Range and its horizontal,
 vertical and total distance, live as tokens move — for the GM only or for
-everyone; players never see hidden tokens.
+everyone; players never see hidden tokens. Drag it anywhere on screen by its
+handle.
 
 ![Distances panel](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/distances-panel.png)
 

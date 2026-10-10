@@ -8,12 +8,87 @@ export const PANEL_MIN_WIDTH = 300;
 export const PANEL_MAX_WIDTH = 560;
 /** Until Owlbear reports how much room is left on screen (see roomBelow). */
 export const PANEL_MAX_HEIGHT = 600;
-/** Where the panel's top sits (see anchorPosition below). */
-export const PANEL_TOP = 72;
-/** Where the panel's left edge sits. */
-export const PANEL_LEFT = 16;
+/**
+ * Where the panel opens until someone drags it elsewhere: the screen's
+ * top-left corner, clear of Owlbear's own top bar (an estimate, like the
+ * other popovers' sizes).
+ */
+export const DEFAULT_PANEL_POSITION: PanelPosition = { left: 16, top: 72 };
 // Only until the panel has measured its content and resized to fit it.
 const PANEL_INITIAL_HEIGHT = 160;
+
+export type PanelPosition = { left: number; top: number };
+
+// Where the panel was last dropped, per browser (not a room setting: each
+// person's screen is different). The background script and the panel page
+// are the same origin, so they share it.
+const POSITION_KEY = "distancesPanelPosition";
+
+export function getPanelPosition(): PanelPosition {
+  try {
+    const stored = JSON.parse(localStorage.getItem(POSITION_KEY) ?? "null");
+    if (stored && Number.isFinite(stored.left) && Number.isFinite(stored.top)) {
+      return { left: stored.left, top: stored.top };
+    }
+  } catch {
+    // No storage (a private window): the default it is.
+  }
+  return DEFAULT_PANEL_POSITION;
+}
+
+/** null forgets the stored position, so the panel goes back to its default. */
+export function savePanelPosition(position: PanelPosition | null) {
+  try {
+    if (position) {
+      localStorage.setItem(POSITION_KEY, JSON.stringify(position));
+    } else {
+      localStorage.removeItem(POSITION_KEY);
+    }
+  } catch {
+    // Not remembered, but the panel still moves.
+  }
+}
+
+/** Keeps a panel of the given size fully on a screen of the given size. */
+export function clampPanelPosition(
+  position: PanelPosition,
+  size: { width: number; height: number },
+  screen: { width: number; height: number }
+): PanelPosition {
+  return {
+    left: Math.round(Math.max(0, Math.min(position.left, screen.width - size.width))),
+    top: Math.round(Math.max(0, Math.min(position.top, screen.height - size.height))),
+  };
+}
+
+function popoverOptions(position: PanelPosition, width: number, height: number) {
+  return {
+    id: DISTANCES_POPOVER_ID,
+    url: "/distances.html",
+    width,
+    height,
+    // Placed on the screen rather than anchored to the toolbar button:
+    // anchored, it opened over the middle of the map, right on top of the
+    // tokens it lists.
+    anchorReference: "POSITION" as const,
+    anchorPosition: position,
+    anchorOrigin: { horizontal: "LEFT" as const, vertical: "TOP" as const },
+    transformOrigin: { horizontal: "LEFT" as const, vertical: "TOP" as const },
+    disableClickAway: true,
+    // The page draws its own translucent panel (GlassFrame).
+    hidePaper: true,
+  };
+}
+
+/**
+ * Moves the open panel. Owlbear can't move a popover, but opening one that
+ * is already open, same id and page, only moves and resizes it: the page
+ * isn't reloaded, so nothing in it is lost, and it answers fast enough to
+ * follow a drag.
+ */
+export async function moveDistancesPanel(position: PanelPosition, width: number, height: number) {
+  await OBR.popover.open(popoverOptions(position, width, height));
+}
 
 // The panel's ✕ tells the background script (which owns the toolbar
 // button) that it closed, over a broadcast that never leaves this client.
@@ -58,21 +133,18 @@ export async function toggleDistancesPanel() {
     return;
   }
   open = true;
-  await OBR.popover.open({
-    id: DISTANCES_POPOVER_ID,
-    url: "/distances.html",
-    width: PANEL_MIN_WIDTH + GLASS_FRAME,
-    height: PANEL_INITIAL_HEIGHT,
-    // Pinned to the screen's top-left corner rather than anchored to the
-    // toolbar button: anchored, it opened over the middle of the map,
-    // right on top of the tokens it lists. The offset clears Owlbear's own
-    // top bar — an estimate, like the other popovers' sizes.
-    anchorReference: "POSITION",
-    anchorPosition: { left: PANEL_LEFT, top: PANEL_TOP },
-    anchorOrigin: { horizontal: "LEFT", vertical: "TOP" },
-    transformOrigin: { horizontal: "LEFT", vertical: "TOP" },
-    disableClickAway: true,
-    // The page draws its own translucent panel (GlassFrame).
-    hidePaper: true,
-  });
+  const width = PANEL_MIN_WIDTH + GLASS_FRAME;
+  let position = getPanelPosition();
+  // The screen may have shrunk since it was dropped there.
+  try {
+    const [screenWidth, screenHeight] = await Promise.all([OBR.viewport.getWidth(), OBR.viewport.getHeight()]);
+    position = clampPanelPosition(
+      position,
+      { width, height: PANEL_INITIAL_HEIGHT },
+      { width: screenWidth, height: screenHeight }
+    );
+  } catch {
+    // Opened where it was, then.
+  }
+  await OBR.popover.open(popoverOptions(position, width, PANEL_INITIAL_HEIGHT));
 }

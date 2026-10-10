@@ -20,6 +20,7 @@ import { buildIconStackCommands, getStrokeWidthRatio, type Direction } from "./i
 import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "./iconAnchor";
 import { type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
+import { measuredBands } from "../engine/bands";
 import { formatDistance } from "../util/flattenGridScale";
 import {
   resolveDisplay,
@@ -47,7 +48,7 @@ export type LecturaContext = {
 
 /** JSON-safe (it's broadcast): null, not undefined, for "out of range". */
 export type LecturaState = {
-  /** Index into bandSet.bands, or null if out of range. */
+  /** Index into measuredBands(bandSet), or null if out of range. */
   index: number | null;
   withinFilter: boolean;
   /** Origen height - token height, grid units (see tokenDz). */
@@ -72,6 +73,21 @@ function displayOf(ctx: LecturaContext): DisplaySettings {
   return ctx.display ?? resolveDisplay(undefined, ctx.bandSet, { showLecturaDistance: ctx.showDistance });
 }
 
+/** Owlbear's own label font size. */
+export const LABEL_FONT_SIZE = 16;
+
+/**
+ * Owlbear keeps a label's size on screen while the zoom is between
+ * 1/maxViewScale and 1/minViewScale, and past those it follows the map.
+ * Every label here follows the map at any zoom, like the tokens they're on:
+ * both are 1. Zoomed far out they get as small as the tokens.
+ */
+export function followMap<T extends { style: { minViewScale?: number; maxViewScale?: number } }>(label: T): T {
+  label.style.minViewScale = 1;
+  label.style.maxViewScale = 1;
+  return label;
+}
+
 export const lecturaColor: Color = { r: 66, g: 66, b: 66 };
 export const heightLabelOffset: Vector2 = { x: 0, y: -40 };
 const lecturaLabelOffset: Vector2 = { x: 0, y: 40 };
@@ -93,7 +109,7 @@ export function getBandLabel(
   textColor: string,
   opacityScale = 1
 ) {
-  return buildLabel()
+  const label = buildLabel()
     .fillColor(textColor)
     .fillOpacity(1.0 * opacityScale)
     .plainText(text)
@@ -107,10 +123,10 @@ export function getBandLabel(
     .metadata({
       [getPluginId("offset")]: offset,
     })
-    .minViewScale(1)
     .disableHit(true)
     .layer("POPOVER")
     .build();
+  return followMap(label);
 }
 
 // dz = Origen height - token height (see tokenDz). Positive means the
@@ -148,7 +164,7 @@ function getLecturaLabelText(state: LecturaState, ctx: LecturaContext): string {
     parts.push(
       state.index === null
         ? translate(ctx.language, "onMap.outOfRange")
-        : ctx.bandSet.bands[state.index].name
+        : (measuredBands(ctx.bandSet)[state.index]?.name ?? translate(ctx.language, "onMap.outOfRange"))
     );
   }
   if (showsDistanceIn(ctx) && state.distance !== undefined) {
@@ -189,7 +205,7 @@ function withLecturaMetadata(item: Item, tokenId: string, role: "visual" | "labe
 
 function iconShapeFor(state: LecturaState, ctx: LecturaContext) {
   return (
-    (state.index !== null ? ctx.bandSet.bands[state.index].iconShape : undefined) ??
+    (state.index !== null ? measuredBands(ctx.bandSet)[state.index]?.iconShape : undefined) ??
     displayOf(ctx).iconShape
   );
 }

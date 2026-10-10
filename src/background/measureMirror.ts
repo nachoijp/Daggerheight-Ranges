@@ -312,10 +312,13 @@ export function startMeasureMirrorReceiver() {
         await current.view.end();
       }
       const tokenIds = Object.keys(message.states);
-      const tokens =
-        tokenIds.length > 0
-          ? (await OBR.scene.items.getItems(tokenIds)).filter((item): item is Image => isImage(item))
-          : [];
+      // The sender never sends a hidden token's Lectura; a token hidden
+      // since is left out here too, unless this is a GM.
+      const [items, role] = await Promise.all([
+        tokenIds.length > 0 ? OBR.scene.items.getItems(tokenIds) : Promise.resolve([]),
+        OBR.player.getRole(),
+      ]);
+      const tokens = items.filter((item): item is Image => isImage(item) && (role === "GM" || item.visible));
       const view = new LocalMeasureView(message.ctx);
       sessions.set(connectionId, { sessionId: message.sessionId, view });
       const shaders = message.shaders.map((shader) => ({ ...shader, attachedTo: message.ringId }));

@@ -18,6 +18,10 @@ import Close from "@mui/icons-material/Close";
 import { useTranslation } from "../i18n/useTranslation";
 import { GLASS_FRAME } from "../util/glass";
 import { roomBelow, roomBeside } from "../util/roomBelow";
+import { DragHandle } from "./DragHandle";
+import { measuredBands } from "../engine/bands";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import { viewportReaches } from "../util/menuRoom";
 import { getColorString } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
@@ -29,8 +33,7 @@ import { computeDistanceRows, tokenName } from "./rows";
 import {
   DISTANCES_POPOVER_ID,
   PANEL_MAX_HEIGHT,
-  PANEL_TOP,
-  PANEL_LEFT,
+  getPanelPosition,
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
   closeDistancesPanel,
@@ -95,6 +98,24 @@ function TokenLabel({ token }: { token: Image }) {
   );
 }
 
+const SHOW_HIDDEN_KEY = "distancesShowHidden";
+
+function readShowHidden(): boolean {
+  try {
+    return localStorage.getItem(SHOW_HIDDEN_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+function writeShowHidden(show: boolean) {
+  try {
+    localStorage.setItem(SHOW_HIDDEN_KEY, String(show));
+  } catch {
+    // Not remembered; it still applies until the panel closes.
+  }
+}
+
 export function DistancePanel() {
   const t = useTranslation();
   const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
@@ -113,22 +134,28 @@ export function DistancePanel() {
   // between, so a re-render meanwhile doesn't shrink the popover back.
   const [menuOpen, setMenuOpen] = useState(false);
   const menuWanted = useRef(false);
+  // Where the panel sits; the drag handle moves it.
+  const [position, setPosition] = useState(getPanelPosition);
   // As tall as the screen allows below the panel's top, and no wider than
-  // the screen (a phone held upright), rather than fixed bounds.
+  // the room to its right (a phone held upright), rather than fixed bounds
+  // — measured again whenever it's moved.
   const [maxHeight, setMaxHeight] = useState(PANEL_MAX_HEIGHT);
   const [maxWidth, setMaxWidth] = useState(PANEL_MAX_WIDTH);
   useEffect(() => {
-    roomBelow(PANEL_TOP).then((room) => {
+    roomBelow(position.top).then((room) => {
       if (room !== null) {
         setMaxHeight(Math.max(menuHeight(1), room));
       }
     });
-    roomBeside(PANEL_LEFT).then((room) => {
+    roomBeside(position.left).then((room) => {
       if (room !== null) {
-        setMaxWidth(Math.min(PANEL_MAX_WIDTH, room));
+        setMaxWidth(Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, room)));
       }
     });
-  }, []);
+  }, [position]);
+  // The GM's own choice, remembered in their browser: hidden creatures in
+  // the list or not (say, while sharing their screen). Players never get them.
+  const [showHidden, setShowHidden] = useState(() => readShowHidden());
 
   useEffect(() => {
     let mounted = true;
@@ -174,9 +201,9 @@ export function DistancePanel() {
     () =>
       items
         .filter((item): item is Image => isImage(item) && item.layer === "CHARACTER")
-        .filter((token) => role === "GM" || token.visible)
+        .filter((token) => token.visible || (role === "GM" && showHidden))
         .sort((a, b) => tokenName(a).localeCompare(tokenName(b))),
-    [items, role]
+    [items, role, showHidden]
   );
   const tokensRef = useRef(tokens);
   tokensRef.current = tokens;
@@ -286,6 +313,7 @@ export function DistancePanel() {
     <div ref={scrollRef} style={{ height: "100%", overflowY: "hidden" }}>
       <Stack ref={contentRef} sx={{ p: 1, gap: 1 }}>
         <Stack direction="row" alignItems="center" gap={0.5}>
+          <DragHandle position={position} size={() => panelSize.current} onMoved={setPosition} />
           <Select
             aria-label={t("distances.origin")}
             value={origin ? origin.id : ""}
@@ -306,17 +334,32 @@ export function DistancePanel() {
               </MenuItem>
             ))}
           </Select>
-          {/* To the side: with no token picked the panel is a single row,
-              with no room above or below it for the tooltip. */}
-          <Tooltip title={t("distances.close")} placement="left">
+          {/* The header's buttons get the browser's own tooltip (title), not
+              MUI's: MUI's is drawn inside the panel's page, and a one-row
+              panel has no room for it. The browser draws its own over
+              everything. */}
+          {role === "GM" && (
             <IconButton
               size="small"
-              aria-label={t("distances.close")}
-              onClick={closeDistancesPanel}
+              aria-label={t(showHidden ? "distances.hideHidden" : "distances.showHidden")}
+              title={t(showHidden ? "distances.hideHidden" : "distances.showHidden")}
+              aria-pressed={showHidden}
+              onClick={() => {
+                setShowHidden(!showHidden);
+                writeShowHidden(!showHidden);
+              }}
             >
-              <Close fontSize="small" />
+              {showHidden ? <VisibilityRounded fontSize="small" /> : <VisibilityOffRounded fontSize="small" />}
             </IconButton>
-          </Tooltip>
+          )}
+          <IconButton
+            size="small"
+            aria-label={t("distances.close")}
+            title={t("distances.close")}
+            onClick={closeDistancesPanel}
+          >
+            <Close fontSize="small" />
+          </IconButton>
         </Stack>
         {origin && (
           <Stack>
@@ -358,7 +401,7 @@ export function DistancePanel() {
                   </TableHead>
                   <TableBody>
                     {rows.map((row) => {
-                      const band = row.bandIndex === null ? null : bandSet.bands[row.bandIndex];
+                      const band = row.bandIndex === null ? null : measuredBands(bandSet)[row.bandIndex];
                       const height = distanceText(Math.abs(row.heightDifference));
                       return (
                         <TableRow key={row.token.id}>
@@ -392,12 +435,13 @@ export function DistancePanel() {
                               {band ? band.name : t("onMap.outOfRange")}
                             </Stack>
                           </TableCell>
+                          {/* The legs of the Total: useful, but secondary, so in a lighter gray. */}
                           {altitude && (
                             <>
-                              <TableCell sx={{ ...cellSx, whiteSpace: "nowrap" }} align="right">
+                              <TableCell sx={{ ...cellSx, whiteSpace: "nowrap", color: "text.secondary" }} align="right">
                                 {distanceText(row.horizontal)}
                               </TableCell>
-                              <TableCell sx={{ ...cellSx, whiteSpace: "nowrap" }} align="right">
+                              <TableCell sx={{ ...cellSx, whiteSpace: "nowrap", color: "text.secondary" }} align="right">
                                 {row.heightDifference === 0 ? (
                                   <span aria-label={t("distances.sameHeight")}>—</span>
                                 ) : (

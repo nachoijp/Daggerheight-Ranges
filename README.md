@@ -7,8 +7,8 @@ A relative, 3D-aware range and altitude measuring tool for [Owlbear Rodeo](https
 ## Features
 
 - **Relative range measuring** — click and drag from any point or token to reveal concentric range bands (Melee, Very Close, Close, Far, Very Far — or your own).
-- **Height / altitude tracking** — right-click a token to set a persistent height marker, or nudge height live with hotkeys while measuring. Readings account for height in 3D, with a choice of spherical, cubic, or cylindrical distance.
-- **Three built-in presets** — Dagger, Steel, and Dragons — or build your own set of ranges from scratch.
+- **Height / altitude tracking** — right-click a token to set a persistent height marker, or nudge height live with hotkeys while measuring, range by range or one grid cell at a time. Readings account for height in 3D, with a choice of spherical, cubic, or cylindrical distance, and big creatures take up height too (a size 2 creature is a 2×2×2 block).
+- **Three built-in presets** — Dagger, Steel (Draw Steel's distances, measured square by square), and Dragons — or build your own set of ranges from scratch.
 - **Multiple visualization styles** — icon stacks, rings, or filled circles, independently sized and colored.
 - **Exact numbers when you want them** — optionally add each token's exact distance to its Reading ("Close · 15ft"), and show height markers as icons, as a "⬆️ 30ft" label, or both.
 - **Distances panel** — a list of every token's Range, horizontal and vertical distance, and total distance from any token you pick, live as tokens move. For the GM only or for everyone; players never see hidden tokens.
@@ -26,9 +26,11 @@ Drag from a token or an empty point to set your Origin. Every other token gets a
 
 ![Height markers on several tokens](docs/screenshots/height-markers.png)
 
-Right-click any token to set a persistent height marker that sticks around outside of a Measurement.
+Right-click any token to set a persistent height marker that sticks around outside of a Measurement. Heights go range by range, or one grid cell at a time (5 ft, 1 sq, or whatever the grid is set to) — each set of ranges picks which. A token's height is where its feet are, so a big creature standing on the ground still reads as right next to a small one.
 
-![Height context menu and picker](docs/screenshots/height-menu.png)
+![Height context menu, range by range](docs/screenshots/height-menu.png)
+
+![Height context menu, one cell at a time](docs/screenshots/height-menu-cells.png)
 
 ## Build your own ranges
 
@@ -36,7 +38,7 @@ Right-click any token to set a persistent height marker that sticks around outsi
 
 ![Editing a custom set of ranges](docs/screenshots/custom-ranges.png)
 
-Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build your own: name each range, set its radius and icon, add or delete ranges, and pick the rings' shape, the calculation mode (spherical / cubic / cylindrical) and how forgiving Tolerance is.
+Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build your own: name each range, set its radius and icon, add or delete ranges, and pick the rings' shape, the calculation mode (spherical / cubic / cylindrical), whether heights step by range or by cell, and how forgiving Tolerance is. Turn on a Final Range to give everything past the farthest range a name and color of its own, instead of "Out of range".
 
 ## What shows on the map
 
@@ -48,13 +50,13 @@ How each measured token is marked (an icon, a ring, a circle, or nothing), with 
 
 ![Height settings](docs/screenshots/height-tab.png)
 
-Turn the whole height feature on or off, show markers as icons, as a "⬆️ 30ft" label, or both, pick the icon shape, fine-tune the marker's position, size, opacity and distance under Advanced, and set the hotkeys that raise or lower the Origin while measuring.
+Turn the whole height feature on or off, show markers as icons, as a "⬆️ 30ft" label, or both, pick the icon shape, fine-tune the marker's position, size, opacity and distance under Advanced, and set the hotkeys that raise, lower or ground the Origin while measuring.
 
 ## Distances panel
 
-![Distances panel next to tokens with height markers](docs/screenshots/distances-panel.png)
+![Distances panel](docs/screenshots/distances-panel.png)
 
-Pick or select a token to list every other one with its Range and its horizontal, vertical and total distance, live as tokens move. It stays open while you work on the map. The GM decides whether it's for the GM only or for everyone; players never see hidden tokens.
+Pick or select a token to list every other one with its Range and its horizontal, vertical and total distance, live as tokens move. It stays open while you work on the map, and you can drag it anywhere on screen by its handle (double-click the handle to send it back to the corner). The GM decides whether it's for the GM only or for everyone; players never see hidden tokens, and the GM can hide them from their own list too (handy when sharing your screen).
 
 ## General
 

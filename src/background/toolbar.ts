@@ -7,12 +7,14 @@ import { createThemeAction } from "./createThemeAction";
 import { createSettingsAction } from "./createSettingsAction";
 import { createTokenHeightMenu } from "./createTokenHeightMenu";
 import { createDistancesAction } from "./createDistancesAction";
+import { bandSetFromMetadata } from "../bandSets/bandSets";
+import { heightStepOf } from "../engine/heights";
 
 // Everything this extension adds to Owlbear's own UI — the Medición mode,
 // the toolbar actions, the Altura context menu — registered from the
 // current scene's settings, and again whenever those change (the labels'
-// language, the activation key, which of them exist), so no change needs a
-// reload. Registering an id again replaces it; what's turned off is removed.
+// language, the activation key, which of them exist, the height picker's
+// size), so no change needs a reload. Registering an id again replaces it; what's turned off is removed.
 
 let lastSignature: string | null = null;
 
@@ -21,7 +23,8 @@ export function registerToolbar(metadata: Record<string, unknown>) {
   const settings = globalSettingsFromMetadata(metadata);
   const altitudeMenu = (settings.enableAltitude ?? true) && settings.showAltitudeMenu;
   const distancePanel = settings.distancePanel ?? "off";
-  const signature = JSON.stringify([language, settings.hotkeyActivate, altitudeMenu, distancePanel]);
+  const heightStep = heightStepOf(bandSetFromMetadata(metadata));
+  const signature = JSON.stringify([language, settings.hotkeyActivate, altitudeMenu, distancePanel, heightStep]);
   if (signature === lastSignature) {
     return;
   }
@@ -37,7 +40,7 @@ export function registerToolbar(metadata: Record<string, unknown>) {
     OBR.tool.removeAction(getPluginId("action/distances"));
   }
   if (altitudeMenu) {
-    createTokenHeightMenu(language);
+    createTokenHeightMenu(language, heightStep);
   } else if (!firstTime) {
     OBR.contextMenu.remove(getPluginId("menu/tokenHeight"));
   }

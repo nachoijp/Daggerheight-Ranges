@@ -300,6 +300,7 @@ export function Settings() {
             bandSet={selectedBandSet}
             defaultIconShape={display.iconShape}
             isPreset={isPreset}
+            altitudeEnabled={settings.enableAltitude ?? true}
             editing={editing}
             onChange={onChangeBandSet}
             onDelete={onDeleteBandSet}

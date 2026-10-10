@@ -14,7 +14,7 @@ import { type Band, type BandShape, type IconShape } from "../engine/types";
 import { Color } from "../theme/themes";
 import NumberField from "../util/NumberField";
 import { useOBRContext } from "./OBRContext";
-import { flattenGridScale } from "../util/flattenGridScale";
+import { flattenGridScale, gridUnit } from "../util/flattenGridScale";
 import { BandIconShapeMenu } from "./BandIconShapeMenu";
 import { useTranslation } from "../i18n/useTranslation";
 
@@ -108,7 +108,7 @@ export function BandItem({
         input: {
           endAdornment: (
             <InputAdornment position="end">
-              {gridScale.parsed.unit}
+              {gridUnit(gridScale).trim()}
             </InputAdornment>
           ),
           inputProps: {

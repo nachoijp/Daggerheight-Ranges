@@ -13,6 +13,8 @@ export type GlobalSettings = {
   hotkeyActivate: string;
   hotkeyRaise: string;
   hotkeyLower: string;
+  /** Puts the Origen back on the ground while measuring. Missing = DEFAULT_HOTKEY_GROUND. */
+  hotkeyGround?: string;
   /** Whether the "Altura" right-click option exists (only with enableAltitude). */
   showAltitudeMenu: boolean;
   /** Only a fallback for display.lecturaStyle/lecturaLabel (false = no Lecturas). Missing = true. */
@@ -44,6 +46,12 @@ export const DEFAULT_GLOBAL_SETTINGS: GlobalSettings = {
   distancePanel: "off",
 };
 
+export const DEFAULT_HOTKEY_GROUND = "C";
+
+export function groundHotkey(settings: GlobalSettings): string {
+  return settings.hotkeyGround ?? DEFAULT_HOTKEY_GROUND;
+}
+
 const optionalBoolean = (value: unknown) => value === undefined || typeof value === "boolean";
 
 const METADATA_KEY = getPluginId("globalSettings");
@@ -58,6 +66,7 @@ function isGlobalSettings(value: unknown): value is GlobalSettings {
     isLetter(value.hotkeyActivate) &&
     isLetter(value.hotkeyRaise) &&
     isLetter(value.hotkeyLower) &&
+    (value.hotkeyGround === undefined || isLetter(value.hotkeyGround)) &&
     typeof value.showAltitudeMenu === "boolean" &&
     optionalBoolean(value.enableLecturas) &&
     optionalBoolean(value.enableAltitude) &&

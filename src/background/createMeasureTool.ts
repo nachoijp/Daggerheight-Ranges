@@ -2,6 +2,7 @@ import OBR, {
   isImage,
   isShape,
   Math2,
+  type GridScale,
   type Image,
   type InteractionManager,
   type Item,
@@ -32,39 +33,41 @@ import { getMetadata } from "../util/getMetadata";
 import { getStoredTheme } from "../theme/themes";
 import {
   DEFAULT_TOLERANCE,
-  distance3D,
-  effectiveDistance,
+  bodyCenterHeight,
+  bodyDistance,
   excessRadius,
-  shownDistance,
+  matchedDistance,
 } from "../engine/distance";
-import { findBand } from "../engine/bands";
-import { Band, BandSet } from "../engine/types";
+import { findBandIndex } from "../engine/bands";
+import { bandAtHeight, heightStepOf, stepHeight } from "../engine/heights";
+import { BandSet } from "../engine/types";
+import { formatDistance } from "../util/flattenGridScale";
 import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { resolveDisplay, showsDistance, type DisplaySettings } from "../settings/display";
 import {
   getAllTokenHeightMarkers,
-  getTokenHeightState,
+  getTokenHeight,
   markerLookFromMetadata,
   tokenHeightsFromMarkers,
   type MarkerLook,
-  type TokenHeightState,
 } from "../tokenHeight/markers";
 import { DEFAULT_LANGUAGE, languageFromMetadata, type Language } from "../i18n/language";
 import { translate } from "../i18n/translate";
 import {
   DEFAULT_GLOBAL_SETTINGS,
   globalSettingsFromMetadata,
+  groundHotkey,
   letterToCode,
   type GlobalSettings,
 } from "../settings/globalSettings";
 
 // The Medición tool: drag from a point, or from a token to move it, and see
 // rings around the Origen, a Lectura on every other token, and the Origen's
-// height (Z/X raise or lower it). Everything below is the state of the one
+// height (Z/X raise or lower it, C puts it back on the ground). Everything below is the state of the one
 // Medición in progress; cleanup() resets it.
 
 // Owlbear stops syncing an interaction to other clients 15s after it
-// starts (undocumented; seen 2026-09-30): their rings vanish. The mirrored
+// starts (undocumented): their rings vanish. The mirrored
 // gradient, Lecturas and height label are ended for them at the same
 // moment, slightly early since Owlbear's timer starts a little before ours.
 const REMOTE_SYNC_CUTOFF_MS = 14900;
@@ -79,8 +82,8 @@ let shaders: Item[] = [];
 let grabOffset: Vector2 = { x: 0, y: 0 };
 /** The token the Medición started on (if the player may move it), as it was at the start. */
 let downTarget: Item | null = null;
-/** That token's height marker before this Medición changed it — restored on cancel. */
-let originMarkerBeforeEdit: TokenHeightState | undefined;
+/** That token's height before this Medición changed it — restored on cancel. */
+let originHeightBeforeEdit = 0;
 /** Where the dragged token is now; downTarget keeps its starting position. */
 let liveTokenPosition: Vector2 | null = null;
 
@@ -99,16 +102,26 @@ let activeLecturasEnabled = true;
 let activeShowDistance = false;
 let activeMarkerLook: MarkerLook | null = null;
 let activeDpi = 0;
+let activeGridScale: GridScale | null = null;
 /** The Origen token's radius in grid units, 0 from a point. */
 let activeOriginRadius = 0;
-let sortedBands: Band[] = [];
-/** The Origen's height as a signed Banda step: 0 = ground, +n = n Bandas up, -n = down. */
-let bandIndex = 0;
+/** The Origen's height in grid units: 0 = ground, positive up, negative down. */
+let originHeight = 0;
 /** tokenId -> signed height in grid units, from the height markers. */
 let activeTokenHeights: Map<string, number> = new Map();
 // The measured tokens as they were when the Medición started: moves come in
 // far faster than fresh reads could, so Lecturas measure this snapshot.
+// Hidden ones only for the GM.
 let activeTokens: Image[] = [];
+/** The hidden tokens among activeTokens (GM only): their Lecturas are drawn here, never sent to anyone else. */
+let hiddenTokenIds: Set<string> = new Set();
+/**
+ * A GM measuring from a hidden token: nothing of this Medición may reach the
+ * players, or they'd see rings centered on a creature they can't see. The
+ * rings are hidden items (the GM sees them faded, as Owlbear shows hidden
+ * things), and nothing is mirrored.
+ */
+let secretMedicion = false;
 /** This client's Lecturas and height label, and the last state drawn for each. */
 let measureView: LocalMeasureView | null = null;
 let activeLecturaStates: Map<string, LecturaState> = new Map();
@@ -175,32 +188,22 @@ function scheduleLecturaRefresh(position: Vector2) {
 }
 
 /**
- * A token's distance from the Lectura center: `matched` (with both tokens'
- * bulk and Tolerancia) decides its Banda and the Filtro; `shown` (without
- * Tolerancia) is the number its label displays.
+ * A token's distance from the Lectura center: `matched` (with Tolerancia)
+ * decides its Banda and the Filtro; `shown` (without it) is the number its
+ * label displays. Both measure between the two tokens' bodies (see
+ * bodyDistance).
  */
-function getLecturaDistance(
-  tokenPosition: Vector2,
-  dpi: number,
-  height: number,
-  bandSet: BandSet,
-  tokenRadius: number
-): { matched: number; shown: number } {
-  const dx = (tokenPosition.x - activeLecturaCenter.x) / dpi;
-  const dy = (tokenPosition.y - activeLecturaCenter.y) / dpi;
-  const centerDistance = distance3D(dx, dy, height, bandSet.metric);
-  const tolerance = (bandSet.tolerance ?? DEFAULT_TOLERANCE) / 100;
+function getLecturaDistance(token: Image, bandSet: BandSet): { matched: number; shown: number } {
+  const dx = (token.position.x - activeLecturaCenter.x) / activeDpi;
+  const dy = (token.position.y - activeLecturaCenter.y) / activeDpi;
+  const tokenRadius = getTokenRadius(token, activeDpi);
+  const dz =
+    bodyCenterHeight(activeTokenHeights.get(token.id) ?? 0, tokenRadius) -
+    bodyCenterHeight(originHeight, activeOriginRadius);
   const excessRadiusSum = excessRadius(activeOriginRadius) + excessRadius(tokenRadius);
-  return {
-    matched: effectiveDistance(centerDistance, excessRadiusSum, tolerance),
-    shown: shownDistance(centerDistance, excessRadiusSum),
-  };
-}
-
-/** Index into bandSet.bands of the Banda a distance falls in, or undefined if out of range. */
-function getLecturaBandIndex(distance: number, bandSet: BandSet): number | undefined {
-  const band = findBand(distance, bandSet);
-  return band ? bandSet.bands.indexOf(band) : undefined;
+  const { distance } = bodyDistance(dx, dy, dz, excessRadiusSum, bandSet.metric);
+  const tolerance = (bandSet.tolerance ?? DEFAULT_TOLERANCE) / 100;
+  return { matched: matchedDistance(distance, tolerance), shown: distance };
 }
 
 function isWithinFilter(distance: number, bandSet: BandSet): boolean {
@@ -217,37 +220,25 @@ function isWithinFilter(distance: number, bandSet: BandSet): boolean {
   return distance <= filterBand.radius;
 }
 
-/** The Origen's height in grid units. */
-function currentHeight() {
-  if (bandIndex === 0) {
-    return 0;
-  }
-  return bandIndex > 0 ? sortedBands[bandIndex - 1].radius : -sortedBands[-bandIndex - 1].radius;
-}
-
-/** Origen height minus the token's height (only its size and sign matter). */
+/** Origen height minus the token's height (only its sign matters: which way the Lectura's arrow points). */
 function tokenDz(token: Item) {
-  return currentHeight() - (activeTokenHeights.get(token.id) ?? 0);
+  return originHeight - (activeTokenHeights.get(token.id) ?? 0);
 }
 
 function currentHeightLabelText() {
-  if (bandIndex === 0) {
+  if (originHeight === 0) {
     return translate(activeLanguage, "onMap.ground");
   }
+  // By Banda, a height that is one is called by its name; otherwise (or by
+  // cell) it's the distance itself.
+  const band = activeBandSet && heightStepOf(activeBandSet) === "band" ? bandAtHeight(originHeight, activeBandSet) : undefined;
+  const text = band
+    ? band.name
+    : activeGridScale
+      ? formatDistance(activeGridScale, Math.abs(originHeight))
+      : String(Math.abs(originHeight));
   // Emoji arrows: Owlbear's map font has no plain ↑/↓.
-  return bandIndex > 0
-    ? `${sortedBands[bandIndex - 1].name} ⬆️`
-    : `${sortedBands[-bandIndex - 1].name} ⬇️`;
-}
-
-/** The Origen's height as a marker stores it. */
-function currentOriginBandRef(): TokenHeightState | undefined {
-  if (bandIndex === 0) {
-    return undefined;
-  }
-  return bandIndex > 0
-    ? { bandId: sortedBands[bandIndex - 1].id, direction: "up" }
-    : { bandId: sortedBands[-bandIndex - 1].id, direction: "down" };
+  return `${text} ${originHeight > 0 ? "⬆️" : "⬇️"}`;
 }
 
 /** downTarget at its current dragged position. */
@@ -264,21 +255,21 @@ function liveDownTargetImage(): Image | undefined {
  * no token is grabbed. `position` puts the marker where the token really
  * ends up, when that isn't where it's being dragged.
  */
-function originMarkerRequest(ref: TokenHeightState | undefined, position?: Vector2): OriginMarkerRequest | null {
+function originMarkerRequest(height: number, position?: Vector2): OriginMarkerRequest | null {
   const live = liveDownTargetImage();
   if (!live || !activeBandSet || !activeMarkerLook) {
     return null;
   }
   const token = position ? { ...live, position } : live;
-  return { token, ref, bandSet: activeBandSet, dpi: activeDpi, look: activeMarkerLook, attempt: 0 };
+  return { token, height, bandSet: activeBandSet, dpi: activeDpi, look: activeMarkerLook, attempt: 0 };
 }
 
 /** One token's Lectura, as the measuring client computes it — every client draws it from this. */
 function computeLecturaState(token: Image, bandSet: BandSet): LecturaState {
   const dz = tokenDz(token);
-  const { matched, shown } = getLecturaDistance(token.position, activeDpi, dz, bandSet, getTokenRadius(token, activeDpi));
+  const { matched, shown } = getLecturaDistance(token, bandSet);
   const state: LecturaState = {
-    index: getLecturaBandIndex(matched, bandSet) ?? null,
+    index: findBandIndex(matched, bandSet),
     withinFilter: isWithinFilter(matched, bandSet),
     dz,
   };
@@ -288,6 +279,11 @@ function computeLecturaState(token: Image, bandSet: BandSet): LecturaState {
     state.distance = Math.round(shown);
   }
   return state;
+}
+
+/** The Lecturas other clients may see: none of a hidden token's. */
+function sharedStates(states: Record<string, LecturaState>): Record<string, LecturaState> {
+  return Object.fromEntries(Object.entries(states).filter(([tokenId]) => !hiddenTokenIds.has(tokenId)));
 }
 
 /** Moves the rings and their labels to activeCenter. */
@@ -321,7 +317,10 @@ function refreshLecturas() {
   }
   if (anyChanged) {
     measureView.applyStates(changed);
-    mirrorStates(changed);
+    const shared = sharedStates(changed);
+    if (Object.keys(shared).length > 0) {
+      mirrorStates(shared);
+    }
   }
 }
 
@@ -367,13 +366,15 @@ function cleanup() {
   activeBandSet = null;
   activeDisplay = null;
   activeMarkerLook = null;
-  sortedBands = [];
-  bandIndex = 0;
+  activeGridScale = null;
+  originHeight = 0;
   activeTokens = [];
+  hiddenTokenIds = new Set();
+  secretMedicion = false;
   activeTokenHeights = new Map();
   pendingPointerPosition = null;
   pendingLecturaPosition = null;
-  originMarkerBeforeEdit = undefined;
+  originHeightBeforeEdit = 0;
   forgetCache();
   liveTokenPosition = null;
   pendingMove = null;
@@ -431,7 +432,7 @@ async function releaseMedicion() {
   const interaction = tokenInteraction;
   tokenInteraction = null;
   const startPosition = downTarget?.position;
-  const markerRequest = activeAltitudeEnabled ? originMarkerRequest(currentOriginBandRef()) : null;
+  const markerRequest = activeAltitudeEnabled ? originMarkerRequest(originHeight) : null;
   const generation = toolDownGeneration;
   // The last snapped move, so the token lands where it was dropped.
   if (pendingMove) {
@@ -453,7 +454,7 @@ async function releaseMedicion() {
 
 /** Ends a cancelled Medición: the token goes back, and so does its marker. */
 async function cancelMedicion() {
-  const restore = activeAltitudeEnabled ? originMarkerRequest(originMarkerBeforeEdit, downTarget?.position) : null;
+  const restore = activeAltitudeEnabled ? originMarkerRequest(originHeightBeforeEdit, downTarget?.position) : null;
   cleanup();
   await restoreOriginMarker(restore);
 }
@@ -496,12 +497,13 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
             })
           : Promise.resolve();
       const writesBeforeFetch = writesSoFar();
-      const [sceneMetadata, dpi, gridScale, characterImages, allHeightMarkers] = await Promise.all([
+      const [sceneMetadata, dpi, gridScale, characterImages, allHeightMarkers, role] = await Promise.all([
         OBR.scene.getMetadata(),
         OBR.scene.grid.getDpi(),
         OBR.scene.grid.getScale(),
         OBR.scene.items.getItems<Image>((item): item is Image => isImage(item) && item.layer === "CHARACTER"),
         getAllTokenHeightMarkers(),
+        OBR.player.getRole(),
         permissionCheck,
       ]);
       if (generation !== toolDownGeneration) {
@@ -522,8 +524,8 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       activeShowDistance = showsDistance(activeDisplay.lecturaLabel);
       activeMarkerLook = markerLookFromMetadata(sceneMetadata);
       activeDpi = dpi;
+      activeGridScale = gridScale;
       activeOriginRadius = downTarget && isImage(downTarget) ? getTokenRadius(downTarget, dpi) : 0;
-      sortedBands = [...bandSet.bands].sort((a, b) => a.radius - b.radius);
 
       // Added while the rings' interaction starts below, not before it.
       shaders = buildGradientShaders(initialPosition, theme, bandSet, dpi, activeOriginRadius);
@@ -531,30 +533,30 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       const shadersAdded = OBR.scene.local.addItems(addedShaders);
 
       const heightMarkers = activeAltitudeEnabled ? allHeightMarkers : [];
-      activeTokens = characterImages.filter((item) => item.id !== downTarget?.id);
+      // A player's client still has hidden tokens (Owlbear just doesn't draw
+      // them): measuring them would show their Lecturas.
+      activeTokens = characterImages.filter(
+        (item) => item.id !== downTarget?.id && (role === "GM" || item.visible)
+      );
+      hiddenTokenIds = new Set(activeTokens.filter((item) => !item.visible).map((item) => item.id));
+      secretMedicion = target?.type === "IMAGE" && !target.visible;
       activeTokenHeights = tokenHeightsFromMarkers(heightMarkers, bandSet);
 
       // A Medición started on a token with a height marker starts at that
       // height.
-      bandIndex = 0;
+      originHeight = 0;
       if (activeAltitudeEnabled) {
         const originId = event.target?.id;
         const originMarker = originId && heightMarkers.find((m) => m.attachedTo === originId);
-        const originState = originMarker && getTokenHeightState(originMarker);
-        originMarkerBeforeEdit = downTarget ? originState || undefined : undefined;
+        originHeight = (originMarker && getTokenHeight(originMarker, bandSet)) || 0;
+        originHeightBeforeEdit = downTarget ? originHeight : 0;
         if (downTarget) {
           seedCache(downTarget.id, originMarker ? [originMarker] : [], writesBeforeFetch);
         } else {
           forgetCache();
         }
-        if (originState) {
-          const sortedIndex = sortedBands.findIndex((b) => b.id === originState.bandId);
-          if (sortedIndex !== -1) {
-            bandIndex = (sortedIndex + 1) * (originState.direction === "up" ? 1 : -1);
-          }
-        }
       } else {
-        originMarkerBeforeEdit = undefined;
+        originHeightBeforeEdit = 0;
         forgetCache();
       }
       if (generation !== toolDownGeneration) {
@@ -569,6 +571,11 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
         activeDisplay.ringLabel,
         activeOriginRadius
       );
+      if (secretMedicion) {
+        for (const item of bandItems) {
+          item.visible = false;
+        }
+      }
       const [interaction] = await Promise.all([OBR.interaction.startItemInteraction(bandItems), shadersAdded]);
       if (generation !== toolDownGeneration) {
         interaction[1]();
@@ -605,8 +612,8 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       // Only now: other clients attach the gradient and height label to this
       // ring, so it has to exist for them first.
       const firstRing = bandItems.find((item) => isShape(item));
-      if (firstRing) {
-        mirrorStart({ ctx, states, shaders, ringId: firstRing.id, heightLabel });
+      if (firstRing && !secretMedicion) {
+        mirrorStart({ ctx, states: sharedStates(states), shaders, ringId: firstRing.id, heightLabel });
       }
     },
     async onToolDragStart() {
@@ -647,18 +654,28 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       if (!bandInteraction || event.repeat || !activeAltitudeEnabled) {
         return;
       }
+      if (!activeBandSet) {
+        return;
+      }
+      let next: number;
       if (event.code === letterToCode(activeSettings.hotkeyRaise)) {
-        bandIndex = Math.min(bandIndex + 1, sortedBands.length);
+        next = stepHeight(originHeight, 1, activeBandSet);
       } else if (event.code === letterToCode(activeSettings.hotkeyLower)) {
-        bandIndex = Math.max(bandIndex - 1, -sortedBands.length);
+        next = stepHeight(originHeight, -1, activeBandSet);
+      } else if (event.code === letterToCode(groundHotkey(activeSettings))) {
+        next = 0;
       } else {
         return;
       }
+      if (next === originHeight) {
+        return;
+      }
+      originHeight = next;
       refreshLecturas();
       refreshHeightLabel();
       // The marker follows too; not awaited, writes are queued.
       if (downTarget) {
-        enqueueOriginMarkerWrite(originMarkerRequest(currentOriginBandRef()));
+        enqueueOriginMarkerWrite(originMarkerRequest(originHeight));
       }
     },
     async onToolDragEnd() {

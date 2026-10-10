@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:beta": "tsc && vite build --outDir dist-beta && node scripts/beta-manifest.mjs"
   },
   "devDependencies": {
     "@types/react": "^19.1.11",

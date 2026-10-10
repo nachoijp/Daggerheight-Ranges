@@ -9,7 +9,7 @@ import IconButton from "@mui/material/IconButton";
 import CheckRounded from "@mui/icons-material/CheckRounded";
 import EditRounded from "@mui/icons-material/EditRounded";
 import { useTranslation } from "../i18n/useTranslation";
-import { useRoomyMenu } from "../util/menuRoom";
+import { useFittedMenu } from "../util/menuRoom";
 
 export function BandSetSelector({
   selectedBandSet,
@@ -37,7 +37,8 @@ export function BandSetSelector({
 }) {
   const t = useTranslation();
   const bandSets = [...defaultBandSets, ...customBandSets];
-  const menu = useRoomyMenu();
+  // Opens downward, scrolling if the sets don't fit below it.
+  const menu = useFittedMenu("down");
 
   function onAddBandSet() {
     const newBandSet = {
@@ -72,14 +73,10 @@ export function BandSetSelector({
         renderValue={(value) =>
           bandSets.find((bandSet) => bandSet.id === value)?.name
         }
-        open={menu.isOpen}
-        onOpen={() => menu.open(true)}
-        onClose={menu.close}
+        {...menu.selectProps}
+        MenuProps={{ ...menu.selectProps.MenuProps, elevation: 20 }}
         size="small"
         fullWidth
-        MenuProps={{
-          elevation: 20,
-        }}
       >
         {defaultBandSets.map((bandSet) => (
           <MenuItem

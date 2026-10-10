@@ -12,7 +12,7 @@ import { LabeledSlider } from "./LabeledSlider";
 import { AdvancedSection, ChoiceGroup, SECTION_GAP, SettingSwitch } from "./controls";
 import { useTranslation } from "../i18n/useTranslation";
 import { SIZE_RANGES, type DisplaySettings } from "./display";
-import type { GlobalSettings, MarkerStyle } from "./globalSettings";
+import { groundHotkey, type GlobalSettings, type MarkerStyle } from "./globalSettings";
 import { clearAllTokenHeightMarkers } from "../tokenHeight/markers";
 
 /** Everything about height in one place: the feature itself, how markers look, its menu and its hotkeys. */
@@ -152,18 +152,24 @@ export function AlturaTab({
             <FieldLabel id="altitude-hotkeys-label" tooltip={t("settings.altura.hotkeysTooltip")}>
               {t("settings.altura.hotkeys")}
             </FieldLabel>
-            <Stack direction="row" gap={2} justifyContent="space-around" sx={{ mt: 0.5 }}>
+            <Stack direction="row" gap={1} justifyContent="space-around" sx={{ mt: 0.5 }}>
               <HotkeyRecorder
                 label={t("settings.global.hotkeyRaise")}
                 value={settings.hotkeyRaise}
-                reservedLetters={[settings.hotkeyActivate, settings.hotkeyLower]}
+                reservedLetters={[settings.hotkeyActivate, settings.hotkeyLower, groundHotkey(settings)]}
                 onChange={(hotkeyRaise) => onChangeSettings({ hotkeyRaise })}
               />
               <HotkeyRecorder
                 label={t("settings.global.hotkeyLower")}
                 value={settings.hotkeyLower}
-                reservedLetters={[settings.hotkeyActivate, settings.hotkeyRaise]}
+                reservedLetters={[settings.hotkeyActivate, settings.hotkeyRaise, groundHotkey(settings)]}
                 onChange={(hotkeyLower) => onChangeSettings({ hotkeyLower })}
+              />
+              <HotkeyRecorder
+                label={t("settings.global.hotkeyGround")}
+                value={groundHotkey(settings)}
+                reservedLetters={[settings.hotkeyActivate, settings.hotkeyRaise, settings.hotkeyLower]}
+                onChange={(hotkeyGround) => onChangeSettings({ hotkeyGround })}
               />
             </Stack>
           </Stack>

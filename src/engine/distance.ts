@@ -37,25 +37,42 @@ export function excessRadius(radius: number): number {
 export const DEFAULT_TOLERANCE = 50;
 
 /**
- * The distance a Banda is matched against: the center distance minus both
- * tokens' excess bulk (so tokens that touch always count as touching) and
- * minus the Tolerancia margin `tolerance` (0-1 grid cells), which only
- * ever makes tokens count as closer.
+ * How high a token's body sits, for measuring: its height marks its feet,
+ * so a bigger token's middle is higher up. Only the part above a standard
+ * token's counts (the same baseline as excessRadius), so tokens of standard
+ * size or smaller standing on the same level are level with each other.
  */
-export function effectiveDistance(
-  centerDistance: number,
-  excessRadiusSum: number,
-  tolerance: number
-): number {
-  return centerDistance - excessRadiusSum - tolerance;
+export function bodyCenterHeight(height: number, radius: number): number {
+  return height + excessRadius(radius);
 }
 
 /**
- * The distance shown to people (the Lectura's number, the Distancias
- * panel): center distance minus both tokens' excess bulk, so two Large
- * creatures side by side read as adjacent — but without Tolerancia, which
- * is a matching margin, not part of how far apart they really are.
+ * The gap between two tokens' bodies, in grid units: the ground gap and the
+ * height gap are each taken apart (center distance minus both tokens'
+ * excess bulk, never below 0), then combined per the metric. Measuring each
+ * axis apart means tokens side by side on the ground always read as
+ * touching, whatever their sizes; with "cubic" it's exactly the distance
+ * between two cubes. `dz` is the difference of their bodyCenterHeight.
  */
-export function shownDistance(centerDistance: number, excessRadiusSum: number): number {
-  return Math.max(0, centerDistance - excessRadiusSum);
+export function bodyDistance(
+  dx: number,
+  dy: number,
+  dz: number,
+  excessRadiusSum: number,
+  metric: DistanceMetric
+): { distance: number; horizontal: number; vertical: number } {
+  const horizontal = Math.max(0, distance3D(dx, dy, 0, metric) - excessRadiusSum);
+  const vertical = Math.max(0, Math.abs(dz) - excessRadiusSum);
+  return { distance: distance3D(horizontal, 0, vertical, metric), horizontal, vertical };
+}
+
+/**
+ * The distance a Banda is matched against: the body distance minus the
+ * Tolerancia margin `tolerance` (0-1 grid cells), which only ever makes
+ * tokens count as closer. The number shown to people is the body distance
+ * itself — Tolerancia is a matching margin, not part of how far apart they
+ * really are.
+ */
+export function matchedDistance(distance: number, tolerance: number): number {
+  return distance - tolerance;
 }

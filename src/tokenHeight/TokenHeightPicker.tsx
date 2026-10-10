@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
 import OBR from "@owlbear-rodeo/sdk";
-import type { Image } from "@owlbear-rodeo/sdk";
+import type { GridScale, Image } from "@owlbear-rodeo/sdk";
 
 import { useOBRContext } from "../settings/OBRContext";
 import { iconStackPreviewSvg, Direction } from "../render/iconStack";
 import { getStoredTheme } from "../theme/themes";
 import { getColorString } from "../util/color";
-import {
-  clearTokenHeightMarker,
-  getAllTokenHeightMarkers,
-  getTokenHeightState,
-  setTokenHeightMarker,
-} from "./markers";
+import { getAllTokenHeightMarkers, getTokenHeight, setTokenHeightMarker } from "./markers";
+import { clampHeight, heightStepOf, stepHeight } from "../engine/heights";
+import { gridUnit } from "../util/flattenGridScale";
 import { watchTheme } from "./theme";
 import { useTranslation } from "../i18n/useTranslation";
 import type { TranslationKey } from "../i18n/translate";
@@ -38,10 +35,11 @@ const DIRECTION_COL_WIDTH = 20;
 const TABLE_BORDER_SPACING = 3;
 
 export function TokenHeightPicker() {
-  const { bandSet, display } = useOBRContext();
+  const { bandSet, display, gridScale } = useOBRContext();
   const t = useTranslation();
   const [selection, setSelection] = useState<string[]>([]);
-  const [current, setCurrent] = useState<{ bandId: string; direction: Direction } | undefined>();
+  /** tokenId -> height, for the selected tokens. */
+  const [heights, setHeights] = useState<Map<string, number>>(new Map());
 
   // Safe here (unlike at module load): this component only mounts once
   // OBRContextProvider above it has already made successful OBR calls of
@@ -57,41 +55,58 @@ export function TokenHeightPicker() {
 
   useEffect(() => {
     if (selection.length === 0) {
-      setCurrent(undefined);
+      setHeights(new Map());
       return;
     }
     getAllTokenHeightMarkers().then((markers) => {
-      const states = selection.map((id) => {
-        const marker = markers.find((m) => m.attachedTo === id);
-        return marker ? getTokenHeightState(marker) : undefined;
-      });
-      const [first] = states;
-      const allSame =
-        first && states.every((s) => s?.bandId === first.bandId && s?.direction === first.direction);
-      setCurrent(allSame ? first : undefined);
+      setHeights(
+        new Map(
+          selection.map((id) => {
+            const marker = markers.find((m) => m.attachedTo === id);
+            return [id, (marker && getTokenHeight(marker, bandSet)) || 0];
+          })
+        )
+      );
     });
-  }, [selection]);
+  }, [selection, bandSet]);
 
-  // No separate "remove marker" control — clicking the already-active
-  // cell again clears it, same toggle convention as the rest of this
-  // extension's own controls.
-  async function onPick(bandId: string, direction: Direction) {
+  /** The selection's height, or undefined if the selected tokens differ. */
+  const values = [...heights.values()];
+  const current = values.length > 0 && values.every((h) => h === values[0]) ? values[0] : undefined;
+
+  /** Sets each selected token to the height `next` gives it from its own. */
+  async function applyHeights(next: (height: number) => number) {
     if (selection.length === 0) {
       return;
     }
-    if (current?.bandId === bandId && current?.direction === direction) {
-      await clearTokenHeightMarker(selection);
-      setCurrent(undefined);
-      return;
-    }
     const tokens = await OBR.scene.items.getItems<Image>(selection);
-    await setTokenHeightMarker(tokens, bandId, direction);
-    setCurrent({ bandId, direction });
+    const updated = new Map(heights);
+    const groups = new Map<number, Image[]>();
+    for (const token of tokens) {
+      const height = clampHeight(next(heights.get(token.id) ?? 0));
+      updated.set(token.id, height);
+      groups.set(height, [...(groups.get(height) ?? []), token]);
+    }
+    for (const [height, group] of groups) {
+      await setTokenHeightMarker(group, height);
+    }
+    setHeights(updated);
   }
 
   if (selection.length === 0) {
     return (
       <div style={{ fontSize: 13, opacity: 0.7 }}>{t("tokenHeight.selectToken")}</div>
+    );
+  }
+
+  if (heightStepOf(bandSet) === "unit") {
+    return (
+      <UnitStepper
+        current={current}
+        gridScale={gridScale}
+        onStep={(direction) => applyHeights((height) => stepHeight(height, direction, bandSet))}
+        onSet={(height) => applyHeights(() => height)}
+      />
     );
   }
 
@@ -137,8 +152,8 @@ export function TokenHeightPicker() {
                 {direction.arrow}
               </th>
               {markableBands.map(({ band, index }) => {
-                const active =
-                  current?.bandId === band.id && current?.direction === direction.id;
+                const height = direction.id === "up" ? band.radius : -band.radius;
+                const active = current === height;
                 const shape = band.iconShape ?? display.iconShape;
                 const color = getColorString(theme.colors[index % theme.colors.length]);
                 const svg = iconStackPreviewSvg(shape, index + 1, color, direction.id);
@@ -147,7 +162,9 @@ export function TokenHeightPicker() {
                     <button
                       className={active ? "rank-button active" : "rank-button"}
                       title={`${band.name} · ${t(DIRECTION_LABEL_KEYS[direction.id])}`}
-                      onClick={() => onPick(band.id, direction.id)}
+                      // No separate "remove marker" control: clicking the
+                      // active cell again puts the token back on the ground.
+                      onClick={() => applyHeights(() => (active ? 0 : height))}
                       dangerouslySetInnerHTML={{ __html: svg }}
                     />
                   </td>
@@ -157,6 +174,80 @@ export function TokenHeightPicker() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Cell-by-cell heights: one cell down or up, the height itself (typed in
+ * the grid's own units, e.g. "35" ft, rounded to whole cells), and back to
+ * the ground.
+ */
+function UnitStepper({
+  current,
+  gridScale,
+  onStep,
+  onSet,
+}: {
+  /** undefined when the selected tokens are at different heights. */
+  current: number | undefined;
+  gridScale: GridScale;
+  onStep: (direction: 1 | -1) => void;
+  onSet: (height: number) => void;
+}) {
+  const t = useTranslation();
+  const multiplier = gridScale.parsed.multiplier || 1;
+  const shown = current === undefined ? "" : String(+(current * multiplier).toFixed(gridScale.parsed.digits));
+  const [draft, setDraft] = useState(shown);
+  useEffect(() => setDraft(shown), [shown]);
+
+  function commit() {
+    const value = Number(draft.replace(",", "."));
+    if (draft.trim() === "" || !Number.isFinite(value)) {
+      setDraft(shown);
+      return;
+    }
+    const height = clampHeight(Math.round(value / multiplier));
+    if (height === current) {
+      setDraft(shown);
+    } else {
+      onSet(height);
+    }
+  }
+
+  return (
+    <div className="step-row">
+      <button className="step-button" title={t("tokenHeight.lower")} aria-label={t("tokenHeight.lower")} onClick={() => onStep(-1)}>
+        −
+      </button>
+      <label className="step-field">
+        <input
+          className="step-input"
+          inputMode="decimal"
+          value={draft}
+          placeholder="—"
+          aria-label={t("tokenHeight.height")}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              commit();
+            } else if (event.key === "Escape") {
+              setDraft(shown);
+            }
+          }}
+        />
+        <span className="step-unit">{gridUnit(gridScale).trim()}</span>
+      </label>
+      <button className="step-button" title={t("tokenHeight.raise")} aria-label={t("tokenHeight.raise")} onClick={() => onStep(1)}>
+        +
+      </button>
+      <button
+        className={current === 0 ? "step-button ground active" : "step-button ground"}
+        onClick={() => onSet(0)}
+      >
+        {t("onMap.ground")}
+      </button>
     </div>
   );
 }

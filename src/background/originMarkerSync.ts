@@ -4,17 +4,16 @@ import {
   clearTokenHeightMarker,
   setTokenHeightMarker,
   type MarkerLook,
-  type TokenHeightState,
 } from "../tokenHeight/markers";
 
 // Writes the height marker of the token a Medición was started on, as Z/X
 // change it and when the Medición ends. Each request carries everything the
 // write needs, so it doesn't depend on the Medición still being active.
 
-/** One write: set `ref` on the token, or clear its marker when `ref` is undefined. */
+/** One write: set the token's height, or clear its marker when `height` is 0. */
 export type OriginMarkerRequest = {
   token: Image;
-  ref: TokenHeightState | undefined;
+  height: number;
   bandSet: BandSet;
   dpi: number;
   look: MarkerLook;
@@ -62,11 +61,10 @@ async function write(request: OriginMarkerRequest): Promise<boolean> {
   const known = cache?.tokenId === tokenId ? cache.markers : undefined;
   writesStarted++;
   try {
-    if (request.ref) {
+    if (request.height !== 0) {
       const markers = await setTokenHeightMarker(
         [request.token],
-        request.ref.bandId,
-        request.ref.direction,
+        request.height,
         request.bandSet,
         request.dpi,
         known,

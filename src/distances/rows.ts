@@ -2,23 +2,23 @@ import type { Image } from "@owlbear-rodeo/sdk";
 import { BandSet } from "../engine/types";
 import {
   DEFAULT_TOLERANCE,
-  distance3D,
-  effectiveDistance,
+  bodyCenterHeight,
+  bodyDistance,
   excessRadius,
-  shownDistance,
+  matchedDistance,
 } from "../engine/distance";
-import { findBand } from "../engine/bands";
+import { findBandIndex } from "../engine/bands";
 import { getTokenRadius } from "../render/iconAnchor";
 
 export type DistanceRow = {
   token: Image;
-  /** Index into bandSet.bands, or null if out of range. */
+  /** Index into measuredBands(bandSet), or null if out of range. */
   bandIndex: number | null;
   /** Grid units, the same number a Lectura shows. */
   distance: number;
-  /** Ground-plane leg alone (the metric's own flat distance), minus the same bulk. */
+  /** The gap between the bodies on the ground alone (the metric's own flat distance). */
   horizontal: number;
-  /** Target height - origin height, grid units: positive = the target is higher. */
+  /** The gap between the bodies in height alone, signed: positive = the target is higher. 0 when they overlap. */
   heightDifference: number;
 };
 
@@ -35,25 +35,23 @@ export function computeDistanceRows(
   bandSet: BandSet,
   dpi: number
 ): DistanceRow[] {
-  const originHeight = heights.get(origin.id) ?? 0;
-  const originExcess = excessRadius(getTokenRadius(origin, dpi));
+  const originRadius = getTokenRadius(origin, dpi);
+  const originCenter = bodyCenterHeight(heights.get(origin.id) ?? 0, originRadius);
+  const originExcess = excessRadius(originRadius);
   const tolerance = (bandSet.tolerance ?? DEFAULT_TOLERANCE) / 100;
   const rows = others.map((token): DistanceRow => {
     const dx = (token.position.x - origin.position.x) / dpi;
     const dy = (token.position.y - origin.position.y) / dpi;
-    const heightDifference = (heights.get(token.id) ?? 0) - originHeight;
-    const centerDistance = distance3D(dx, dy, heightDifference, bandSet.metric);
-    const excessSum = originExcess + excessRadius(getTokenRadius(token, dpi));
-    const band = findBand(effectiveDistance(centerDistance, excessSum, tolerance), bandSet);
+    const tokenRadius = getTokenRadius(token, dpi);
+    const dz = bodyCenterHeight(heights.get(token.id) ?? 0, tokenRadius) - originCenter;
+    const excessSum = originExcess + excessRadius(tokenRadius);
+    const { distance, horizontal, vertical } = bodyDistance(dx, dy, dz, excessSum, bandSet.metric);
     return {
       token,
-      bandIndex: band ? bandSet.bands.indexOf(band) : null,
-      distance: shownDistance(centerDistance, excessSum),
-      // Token size is a ground footprint, so it shortens this leg too; the
-      // vertical one has nothing to subtract (tokens have no height of
-      // their own), so it's just the raw height difference.
-      horizontal: shownDistance(distance3D(dx, dy, 0, bandSet.metric), excessSum),
-      heightDifference,
+      bandIndex: findBandIndex(matchedDistance(distance, tolerance), bandSet),
+      distance,
+      horizontal,
+      heightDifference: Math.sign(dz) * vertical,
     };
   });
   return rows.sort((a, b) => a.distance - b.distance);

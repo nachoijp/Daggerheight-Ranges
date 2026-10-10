@@ -7,6 +7,9 @@ import Square from "@mui/icons-material/SquareRounded";
 import { FieldLabel } from "./FieldLabel";
 import { useTranslation } from "../i18n/useTranslation";
 
+/** Buttons of a group that shares its row with another (see ShapeAndFinalBand): the same height whether they hold an icon or text. */
+export const HALF_ROW_BUTTON_SX = { height: 32, py: 0, textTransform: "none" } as const;
+
 export function BandShapeButtonGroup({
   value,
   onChange,
@@ -30,14 +33,15 @@ export function BandShapeButtonGroup({
         exclusive
         aria-labelledby="band-shape-label"
         size="small"
+        fullWidth
         sx={{
           my: 0.5,
         }}
       >
-        <ToggleButton value="circle" aria-label={t("settings.bandShape.circleAria")}>
+        <ToggleButton value="circle" aria-label={t("settings.bandShape.circleAria")} sx={HALF_ROW_BUTTON_SX}>
           <Circle fontSize="small" />
         </ToggleButton>
-        <ToggleButton value="square" aria-label={t("settings.bandShape.squareAria")}>
+        <ToggleButton value="square" aria-label={t("settings.bandShape.squareAria")} sx={HALF_ROW_BUTTON_SX}>
           <Square fontSize="small" />
         </ToggleButton>
       </ToggleButtonGroup>

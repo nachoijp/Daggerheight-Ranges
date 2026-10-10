@@ -5,6 +5,9 @@ export type Direction = "up" | "down";
 
 export type BandShape = "circle" | "square";
 
+/** What one raise/lower step moves a token by: to the next Banda, or one grid cell. */
+export type HeightStep = "band" | "unit";
+
 /** Where a Lectura's icon stack sits relative to its token. */
 export type IconPosition = "left" | "right" | "top" | "bottom";
 
@@ -39,6 +42,14 @@ export type BandSet = {
   bands: Band[];
   /** Extra margin for a token to count as inside a Banda, percent 0-100 of a grid cell (see effectiveDistance). Missing = DEFAULT_TOLERANCE. */
   tolerance?: number;
+  /** Missing = "band". */
+  heightStep?: HeightStep;
+  /**
+   * A Banda past all the others, with no end: what's beyond the farthest
+   * one counts as in it rather than out of range. No ring. The name is kept
+   * while it's switched off. Missing = off.
+   */
+  finalBand?: { enabled: boolean; name: string };
 
   // How things look used to be part of each set. It's a room setting now
   // (settings/display.ts); these are only read as its fallbacks, so rooms

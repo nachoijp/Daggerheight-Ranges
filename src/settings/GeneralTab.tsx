@@ -5,7 +5,7 @@ import { ChoiceGroup, SECTION_GAP } from "./controls";
 import { useOBRContext } from "./OBRContext";
 import { useTranslation } from "../i18n/useTranslation";
 import type { Language } from "../i18n/language";
-import type { DistancePanelAccess, GlobalSettings } from "./globalSettings";
+import { groundHotkey, type DistancePanelAccess, type GlobalSettings } from "./globalSettings";
 
 /** Room-wide basics: language, the tool's own shortcut, and who gets the Distancias panel. */
 export function GeneralTab({
@@ -41,7 +41,7 @@ export function GeneralTab({
           label=""
           ariaLabel={t("settings.global.hotkeyActivate")}
           value={settings.hotkeyActivate}
-          reservedLetters={[settings.hotkeyRaise, settings.hotkeyLower]}
+          reservedLetters={[settings.hotkeyRaise, settings.hotkeyLower, groundHotkey(settings)]}
           onChange={(hotkeyActivate) => onChangeSettings({ hotkeyActivate })}
         />
       </Stack>

@@ -13,10 +13,12 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import Tooltip from "@mui/material/Tooltip";
 
 import { BandItem } from "./BandItem";
-import { BandShapeButtonGroup } from "./BandShapeButtonGroup";
 import { getStoredTheme } from "../theme/themes";
 import { BandSet, IconShape } from "../engine/types";
 import { useTranslation } from "../i18n/useTranslation";
+
+/** Enough for any system's distances (Draw Steel has 8); the color themes repeat past 6. */
+const MAX_BANDS = 12;
 
 export function BandSetEditor({
   bandSet,
@@ -103,7 +105,7 @@ export function BandSetEditor({
           fullWidth
           size="small"
           onClick={addBand}
-          disabled={bandSet.bands.length >= 10}
+          disabled={bandSet.bands.length >= MAX_BANDS}
           startIcon={<AddRounded />}
         >
           {t("settings.bandSetEditor.addBanda")}
@@ -147,23 +149,6 @@ function Controls({
             <DeleteRounded />
           </IconButton>
         </Tooltip>
-      </Stack>
-      <Stack
-        direction="row"
-        gap={1.5}
-        rowGap={1}
-        sx={{ mt: 0.5 }}
-        width="100%"
-        alignItems="start"
-        justifyContent="space-around"
-        flexWrap="wrap"
-      >
-        <BandShapeButtonGroup
-          value={bandSet.shape}
-          onChange={(shape) => {
-            onChange({ ...bandSet, shape });
-          }}
-        />
       </Stack>
     </>
   );

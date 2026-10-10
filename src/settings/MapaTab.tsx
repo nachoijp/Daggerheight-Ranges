@@ -4,7 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import { BandSet } from "../engine/types";
 import { LabeledSlider } from "./LabeledSlider";
 import { FieldLabel } from "./FieldLabel";
-import { useRoomyMenu } from "../util/menuRoom";
+import { useFittedMenu } from "../util/menuRoom";
 import { AdvancedSection, ChoiceGroup, SECTION_GAP, SettingSwitch } from "./controls";
 import { useTranslation } from "../i18n/useTranslation";
 import {
@@ -35,7 +35,8 @@ export function MapaTab({
 }) {
   const t = useTranslation();
   const style = display.lecturaStyle;
-  const filterMenu = useRoomyMenu();
+  // At the bottom of the tab: opens upward, scrolling if the Bandas don't fit above it.
+  const filterMenu = useFittedMenu("up");
   return (
     <Stack gap={SECTION_GAP} sx={{ pt: 1 }}>
       <ChoiceGroup<LecturaStyle>
@@ -165,9 +166,7 @@ export function MapaTab({
               bandSet.bands.some((band) => band.id === display.filterBandId) ? display.filterBandId : ""
             }
             onChange={(e) => onChange({ filterBandId: e.target.value || undefined })}
-            open={filterMenu.isOpen}
-            onOpen={() => filterMenu.open(true)}
-            onClose={filterMenu.close}
+            {...filterMenu.selectProps}
             size="small"
             displayEmpty
             sx={{ width: "60%", ml: 7 }}

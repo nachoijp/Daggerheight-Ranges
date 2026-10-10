@@ -118,3 +118,80 @@ body {
   border-color: var(--obr-border-selected, rgba(255, 255, 255, 0.8));
   background-color: var(--obr-overlay-selected, rgba(255, 255, 255, 0.2));
 }
+
+/* Cell-by-cell heights: − [height] + Ground, in one row. */
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.step-button,
+.step-field {
+  height: 36px;
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background-color: var(--obr-overlay, rgba(255, 255, 255, 0.06));
+  color: inherit;
+}
+
+.step-button {
+  min-width: 36px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 18px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  transition: background-color 100ms ease, border-color 100ms ease;
+}
+
+.step-button.ground {
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.step-button:hover {
+  background-color: var(--obr-overlay-hover, rgba(255, 255, 255, 0.14));
+}
+
+.step-button:focus-visible,
+.step-field:focus-within {
+  outline: 2px solid var(--obr-primary-main, #3b82f6);
+  outline-offset: 1px;
+}
+
+.step-button.active {
+  border-color: var(--obr-border-selected, rgba(255, 255, 255, 0.8));
+  background-color: var(--obr-overlay-selected, rgba(255, 255, 255, 0.2));
+}
+
+.step-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 4px;
+  cursor: text;
+}
+
+.step-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  text-align: right;
+}
+
+.step-unit {
+  font-size: 13px;
+  color: var(--obr-text-secondary, rgba(255, 255, 255, 0.7));
+}

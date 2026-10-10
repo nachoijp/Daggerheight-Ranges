@@ -10,7 +10,9 @@ import { getPluginId } from "../util/getPluginId";
 import { isPlainObject } from "../util/isPlainObject";
 import { getColorString } from "../util/color";
 import { getStoredTheme, Theme } from "../theme/themes";
-import { Band, BandSet, IconShape } from "../engine/types";
+import { BandSet, IconShape } from "../engine/types";
+import { heightBandIndex, markerIconCount } from "../engine/heights";
+import { measuredBands } from "../engine/bands";
 import { buildIconStackCommands, getStrokeWidthRatio, Direction } from "../render/iconStack";
 import { computeIconAnchor } from "../render/iconAnchor";
 import { bandSetFromMetadata } from "../bandSets/bandSets";
@@ -20,39 +22,58 @@ import { globalSettingsFromMetadata, type MarkerStyle } from "../settings/global
 
 const METADATA_KEY = getPluginId("tokenHeight");
 
-export interface TokenHeightState {
-  bandId: string;
-  direction: Direction;
-}
+/** What a marker stores: the token's height in grid units, signed (positive up, negative down), never 0. */
+export type TokenHeightState = { height: number };
 
-export function getTokenHeightState(item: Item): TokenHeightState | undefined {
+/** The older marker format: a Banda and a side of the ground. */
+type LegacyTokenHeightState = { bandId: string; direction: Direction };
+
+function storedState(item: Item): TokenHeightState | LegacyTokenHeightState | undefined {
   const metadata = item.metadata[METADATA_KEY];
-  if (
-    isPlainObject(metadata) &&
-    typeof metadata.bandId === "string" &&
-    (metadata.direction === "up" || metadata.direction === "down")
-  ) {
+  if (!isPlainObject(metadata)) {
+    return undefined;
+  }
+  if (typeof metadata.height === "number" && Number.isFinite(metadata.height) && metadata.height !== 0) {
+    return { height: metadata.height };
+  }
+  if (typeof metadata.bandId === "string" && (metadata.direction === "up" || metadata.direction === "down")) {
     return { bandId: metadata.bandId, direction: metadata.direction };
   }
   return undefined;
 }
 
+/**
+ * A marker's height in grid units. An older marker stored a Banda instead:
+ * it's read as that Banda's radius, or undefined (ground) if the Banda was
+ * deleted.
+ */
+export function getTokenHeight(item: Item, bandSet: BandSet): number | undefined {
+  const state = storedState(item);
+  if (!state) {
+    return undefined;
+  }
+  if ("height" in state) {
+    return state.height;
+  }
+  const band = bandSet.bands.find((b) => b.id === state.bandId);
+  return band && (state.direction === "up" ? band.radius : -band.radius);
+}
+
 export function isTokenHeightMarker(item: Item): item is Path {
-  return isPath(item) && getTokenHeightState(item) !== undefined;
+  return isPath(item) && storedState(item) !== undefined;
 }
 
 /**
- * tokenId -> signed height in grid units (positive = marked "up", negative =
- * "down"), resolved against the given BandSet. A token with no marker, or
- * whose marker's Banda was deleted, has no entry — treated as ground (0).
+ * tokenId -> signed height in grid units (positive = up, negative = down).
+ * A token with no marker, or whose old-style marker's Banda was deleted,
+ * has no entry — treated as ground (0).
  */
 export function tokenHeightsFromMarkers(markers: Item[], bandSet: BandSet): Map<string, number> {
   const heights = new Map<string, number>();
   for (const marker of markers) {
-    const state = marker.attachedTo && getTokenHeightState(marker);
-    const band = state && bandSet.bands.find((b) => b.id === state.bandId);
-    if (marker.attachedTo && state && band) {
-      heights.set(marker.attachedTo, state.direction === "up" ? band.radius : -band.radius);
+    const height = marker.attachedTo ? getTokenHeight(marker, bandSet) : undefined;
+    if (marker.attachedTo && height !== undefined) {
+      heights.set(marker.attachedTo, height);
     }
   }
   return heights;
@@ -93,64 +114,74 @@ function markerOpacity(look: MarkerLook): number {
   return look.style === "label" ? 0 : look.tuning.opacity;
 }
 
+/** What a marker at a given height looks like: its icon stack, color and stroke. */
+function markerAppearance(height: number, bandSet: BandSet, theme: Theme, dpi: number, look: MarkerLook) {
+  const bandIndex = heightBandIndex(height, bandSet) ?? 0;
+  const shape = measuredBands(bandSet)[bandIndex]?.iconShape ?? look.iconShape;
+  const direction: Direction = height > 0 ? "up" : "down";
+  const { position, size } = look.tuning;
+  return {
+    commands: buildIconStackCommands(shape, markerIconCount(height, bandSet), dpi, size, position, direction),
+    color: getColorString(theme.colors[bandIndex % theme.colors.length]),
+    strokeWidth: dpi * getStrokeWidthRatio(shape),
+  };
+}
+
+function markerName(height: number): string {
+  return `Rising Ranges: ${height > 0 ? "+" : ""}${height}`;
+}
+
 /** Sets a marker draft's shape, color, position and state in place (shared by updates and refreshes). */
 function applyMarkerGeometry(
   marker: Path,
   token: Image,
-  band: Band,
-  bandIndex: number,
-  direction: Direction,
+  height: number,
+  bandSet: BandSet,
   theme: Theme,
   dpi: number,
   look: MarkerLook
 ): void {
-  const shape = band.iconShape ?? look.iconShape;
-  const { position, size, distance } = look.tuning;
-  marker.commands = buildIconStackCommands(shape, bandIndex + 1, dpi, size, position, direction);
-  marker.style.fillColor = getColorString(theme.colors[bandIndex % theme.colors.length]);
-  marker.style.strokeWidth = dpi * getStrokeWidthRatio(shape);
+  const { commands, color, strokeWidth } = markerAppearance(height, bandSet, theme, dpi, look);
+  marker.commands = commands;
+  marker.style.fillColor = color;
+  marker.style.strokeWidth = strokeWidth;
   marker.style.fillOpacity = markerOpacity(look);
   marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(look);
-  marker.position = computeIconAnchor(token, dpi, position, distance);
+  marker.position = computeIconAnchor(token, dpi, look.tuning.position, look.tuning.distance);
   marker.visible = token.visible;
-  marker.name = `Rising Ranges: ${band.name} (${direction})`;
-  marker.metadata[METADATA_KEY] = { bandId: band.id, direction } as TokenHeightState;
+  marker.name = markerName(height);
+  marker.metadata[METADATA_KEY] = { height } as TokenHeightState;
 }
 
 function buildTokenHeightMarker(
   token: Image,
-  band: Band,
-  bandIndex: number,
-  direction: Direction,
+  height: number,
+  bandSet: BandSet,
   theme: Theme,
   dpi: number,
   look: MarkerLook
 ): Path {
-  const shape = band.iconShape ?? look.iconShape;
-  const { position, size, distance } = look.tuning;
-  const commands = buildIconStackCommands(shape, bandIndex + 1, dpi, size, position, direction);
-  const color = getColorString(theme.colors[bandIndex % theme.colors.length]);
-  const item = buildPath()
+  const { commands, color, strokeWidth } = markerAppearance(height, bandSet, theme, dpi, look);
+  return buildPath()
     .commands(commands)
     .fillColor(color)
     .fillOpacity(markerOpacity(look))
     .strokeColor("#111827")
     .strokeOpacity(MARKER_STROKE_OPACITY * markerOpacity(look))
-    .strokeWidth(dpi * getStrokeWidthRatio(shape))
-    .position(computeIconAnchor(token, dpi, position, distance))
+    .strokeWidth(strokeWidth)
+    .position(computeIconAnchor(token, dpi, look.tuning.position, look.tuning.distance))
     .attachedTo(token.id)
     .layer("ATTACHMENT")
     .locked(true)
     .disableHit(true)
     .visible(token.visible)
-    .name(`Rising Ranges: ${band.name} (${direction})`)
-    .metadata({ [METADATA_KEY]: { bandId: band.id, direction } as TokenHeightState })
+    .name(markerName(height))
+    .metadata({ [METADATA_KEY]: { height } as TokenHeightState })
     .build();
-  return item;
 }
 
 /**
- * Sets the tokens' height marker. An existing marker is updated in place,
+ * Sets the tokens' height marker (a height of 0 clears it). An existing marker is updated in place,
  * never deleted and re-added: with a new id each time, a late write from
  * an earlier call could land after a newer one and undo it.
  *
@@ -161,8 +192,7 @@ function buildTokenHeightMarker(
  */
 export async function setTokenHeightMarker(
   tokens: Image[],
-  bandId: string,
-  direction: Direction,
+  height: number,
   knownBandSet?: BandSet,
   knownDpi?: number,
   knownExisting?: Path[],
@@ -171,15 +201,17 @@ export async function setTokenHeightMarker(
   if (tokens.length === 0) {
     return [];
   }
+  if (height === 0) {
+    await clearTokenHeightMarker(
+      tokens.map((token) => token.id),
+      knownExisting
+    );
+    return [];
+  }
   const [{ bandSet, look }, dpi] =
     knownBandSet !== undefined && knownDpi !== undefined && knownLook !== undefined
       ? [{ bandSet: knownBandSet, look: knownLook }, knownDpi]
       : await Promise.all([getActiveMarkerConfig(), OBR.scene.grid.getDpi()]);
-  const bandIndex = bandSet.bands.findIndex((band) => band.id === bandId);
-  const band = bandSet.bands[bandIndex];
-  if (!band) {
-    return [];
-  }
   const theme = getStoredTheme();
   const tokenById = new Map(tokens.map((token) => [token.id, token]));
   const tokenIds = tokens.map((token) => token.id);
@@ -204,7 +236,7 @@ export async function setTokenHeightMarker(
           if (!token) {
             continue;
           }
-          applyMarkerGeometry(marker, token, band, bandIndex, direction, theme, dpi, look);
+          applyMarkerGeometry(marker, token, height, bandSet, theme, dpi, look);
         }
       }
     );
@@ -213,7 +245,7 @@ export async function setTokenHeightMarker(
   const newMarkers = tokens
     .filter((token) => !tokensWithExisting.has(token.id))
     .map((token) =>
-      buildTokenHeightMarker(token, band, bandIndex, direction, theme, dpi, look)
+      buildTokenHeightMarker(token, height, bandSet, theme, dpi, look)
     );
   if (newMarkers.length > 0) {
     await OBR.scene.items.addItems(newMarkers);
@@ -251,8 +283,9 @@ export async function clearAllTokenHeightMarkers(): Promise<void> {
 
 /**
  * Redraws every marker from the current Bandas, look and theme (a Banda may
- * have been renamed or resized since). Updated in place, so they don't
- * flicker for everyone.
+ * have been renamed or resized since), rewriting an old-style marker as a
+ * plain height while at it. Updated in place, so they don't flicker for
+ * everyone.
  */
 export async function refreshAllTokenHeightMarkers(): Promise<void> {
   const [{ bandSet, look }, dpi, markers] = await Promise.all([
@@ -276,19 +309,14 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
   // different get written — most refreshes change nothing, and every write
   // counts against Owlbear's rate limit ("Too many requests").
   const apply = (marker: Path) => {
-    const state = getTokenHeightState(marker);
+    // undefined for an old-style marker whose Banda was deleted: left as
+    // is, so a passing Bandas edit doesn't wipe markers the GM placed.
+    const height = getTokenHeight(marker, bandSet);
     const token = marker.attachedTo ? tokenById.get(marker.attachedTo) : undefined;
-    if (!state || !token) {
+    if (height === undefined || !token) {
       return;
     }
-    const bandIndex = bandSet.bands.findIndex((band) => band.id === state.bandId);
-    const band = bandSet.bands[bandIndex];
-    // Its Banda was deleted: left as is, so a passing Bandas edit doesn't
-    // wipe markers the GM placed.
-    if (!band) {
-      return;
-    }
-    applyMarkerGeometry(marker, token, band, bandIndex, state.direction, theme, dpi, look);
+    applyMarkerGeometry(marker, token, height, bandSet, theme, dpi, look);
   };
   const changedIds = markers
     .filter((marker) => {

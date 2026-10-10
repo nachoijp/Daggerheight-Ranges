@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useState } from "react";
+import { createContext, useContext, useRef, useState, type SyntheticEvent } from "react";
 
 /**
  * Popovers sized to their content can be short, but dropdown menus open
@@ -72,4 +72,37 @@ export function viewportReaches(height: number) {
     const timeout = setTimeout(done, 300);
     window.addEventListener("resize", onResize);
   });
+}
+
+/** Space kept between a fitted menu and the edge of the popover. */
+const FITTED_MENU_MARGIN = 8;
+
+/**
+ * A Select's menu that opens straight away in the room the popover already
+ * has — below the field ("down") or above it ("up") — and scrolls when the
+ * list is longer than that, instead of growing the popover first (see
+ * useRoomyMenu). For dropdowns whose lists are often long: growing the
+ * popover to full height every time they opened made it jump. Spread
+ * `selectProps` on the Select.
+ */
+export function useFittedMenu(direction: "down" | "up") {
+  const [maxHeight, setMaxHeight] = useState<number | null>(null);
+  return {
+    isOpen: maxHeight !== null,
+    selectProps: {
+      open: maxHeight !== null,
+      onOpen: (event: SyntheticEvent) => {
+        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+        const room = direction === "down" ? window.innerHeight - rect.bottom : rect.top;
+        setMaxHeight(Math.max(0, room - FITTED_MENU_MARGIN));
+      },
+      onClose: () => setMaxHeight(null),
+      MenuProps: {
+        anchorOrigin: { vertical: direction === "down" ? "bottom" : "top", horizontal: "left" },
+        transformOrigin: { vertical: direction === "down" ? "top" : "bottom", horizontal: "left" },
+        marginThreshold: FITTED_MENU_MARGIN,
+        slotProps: { paper: { sx: { maxHeight: maxHeight ?? undefined } } },
+      },
+    } as const,
+  };
 }

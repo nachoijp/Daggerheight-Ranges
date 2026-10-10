@@ -15,8 +15,10 @@ import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { computeIconAnchor } from "../render/iconAnchor";
 import { iconStackExtent } from "../render/iconStack";
+import { followMap, LABEL_FONT_SIZE } from "../render/lecturaItems";
+import { heightBandIndex } from "../engine/heights";
 import {
-  getTokenHeightState,
+  getTokenHeight,
   isTokenHeightMarker,
   markerLookFromMetadata,
   type MarkerLook,
@@ -94,15 +96,14 @@ function wantedLabel(
   scale: GridScale,
   look: MarkerLook
 ): Wanted | null {
-  const state = getTokenHeightState(marker);
-  const bandIndex = state ? bandSet.bands.findIndex((band) => band.id === state.bandId) : -1;
-  if (!state || bandIndex === -1) {
+  const height = getTokenHeight(marker, bandSet);
+  if (height === undefined) {
     return null;
   }
-  const text = `${ARROW[state.direction]} ${formatDistance(scale, bandSet.bands[bandIndex].radius)}`;
+  const text = `${height > 0 ? ARROW.up : ARROW.down} ${formatDistance(scale, Math.abs(height))}`;
   const theme = getStoredTheme();
-  const color = theme.colors[bandIndex % theme.colors.length];
-  const { position: side, distance: iconDistance, opacity } = look.tuning;
+  const color = theme.colors[(heightBandIndex(height, bandSet) ?? 0) % theme.colors.length];
+  const { position: side, distance: iconDistance, opacity, size } = look.tuning;
   // In "label" the label takes the icons' place; in "both" it goes past them.
   const extent = look.style === "both" ? iconStackExtent(marker.commands) : NO_EXTENT;
   const gap = look.style === "both" ? TEXT_GAP * dpi : 0;
@@ -112,6 +113,7 @@ function wantedLabel(
     side,
     iconDistance,
     opacity,
+    size,
     extent,
     gap,
     dpi,
@@ -130,8 +132,10 @@ function wantedLabel(
         .position(position)
         .pointerDirection(pointer)
         .pointerHeight(0)
-        .padding(4)
-        .cornerRadius(12)
+        // The marker's size setting scales the label like it does the icons
+        .fontSize(LABEL_FONT_SIZE * size)
+        .padding(4 * size)
+        .cornerRadius(12 * size)
         .fillColor(getLabelTextColor(color, 180))
         .fillOpacity(opacity)
         .backgroundColor(getColorString(color))
@@ -143,7 +147,7 @@ function wantedLabel(
         .visible(token.visible)
         .build();
       label.metadata[OVERLAY_KEY] = { tokenId: token.id };
-      return label;
+      return followMap(label);
     },
   };
 }

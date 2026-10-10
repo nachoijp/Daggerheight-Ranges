@@ -31,8 +31,10 @@ export function MetricButtonGroup({
   disabled?: boolean;
 }) {
   const t = useTranslation();
+  // Laid out like ChoiceGroup (controls.tsx), which every other row of
+  // toggle buttons uses; this one only differs in its options' tooltips.
   return (
-    <Stack>
+    <Stack sx={{ px: 1 }}>
       <FieldLabel id="metric-label" tooltip={t("settings.metric.tooltip")}>
         {t("settings.metric.label")}
       </FieldLabel>
@@ -64,7 +66,9 @@ export function MetricButtonGroup({
               </Stack>
             }
           >
-            <ToggleButton value={metric}>{t(METRIC_LABEL_KEYS[metric])}</ToggleButton>
+            <ToggleButton value={metric} sx={{ px: 0.5, textTransform: "none" }}>
+              {t(METRIC_LABEL_KEYS[metric])}
+            </ToggleButton>
           </Tooltip>
         ))}
       </ToggleButtonGroup>
