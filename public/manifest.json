@@ -3,6 +3,7 @@
   "version": "1.2.0",
   "manifest_version": 1,
   "author": "Ignacio Pedraza",
+  "homepage_url": "https://github.com/nachoijp/Rising-Ranges#readme",
   "icon": "/logo.png",
   "background_url": "/background.html",
   "description": "Relative 3D range and altitude measuring for Owlbear Rodeo"
