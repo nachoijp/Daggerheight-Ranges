@@ -1,4 +1,6 @@
+import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import OpenInNewRounded from "@mui/icons-material/OpenInNewRounded";
 import { FieldLabel } from "./FieldLabel";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import { ChoiceGroup, SECTION_GAP } from "./controls";
@@ -7,7 +9,9 @@ import { useTranslation } from "../i18n/useTranslation";
 import type { Language } from "../i18n/language";
 import { groundHotkey, type DistancePanelAccess, type GlobalSettings } from "./globalSettings";
 
-/** Room-wide basics: language, the tool's own shortcut, and who gets the Distancias panel. */
+const README_URL = "https://github.com/nachoijp/Rising-Ranges#readme";
+
+/** Room-wide basics: language, the tool's own shortcut, who gets the Distancias panel, and a way back to the manual. */
 export function GeneralTab({
   settings,
   onChangeSettings,
@@ -58,6 +62,25 @@ export function GeneralTab({
           { value: "everyone", label: t("settings.global.distancePanelEveryone") },
         ]}
       />
+
+      <Stack direction="row" alignItems="center" gap={1} sx={{ px: 1 }}>
+        <Stack sx={{ flexGrow: 1 }}>
+          <FieldLabel id="help-label" tooltip={t("settings.general.helpTooltip")}>
+            {t("settings.general.help")}
+          </FieldLabel>
+        </Stack>
+        <Button
+          variant="outlined"
+          size="small"
+          href={README_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          endIcon={<OpenInNewRounded fontSize="small" />}
+          aria-describedby="help-label"
+        >
+          {t("settings.general.helpOpen")}
+        </Button>
+      </Stack>
     </Stack>
   );
 }

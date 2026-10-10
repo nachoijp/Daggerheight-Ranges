@@ -103,6 +103,9 @@ const en: Record<TranslationKey, string> = {
   "settings.global.distancePanelOff": "Off",
   "settings.global.distancePanelGm": "GM only",
   "settings.global.distancePanelEveryone": "Everyone",
+  "settings.general.help": "Help",
+  "settings.general.helpTooltip": "Opens the Rising Ranges manual (the README on GitHub) in a new tab.",
+  "settings.general.helpOpen": "View manual",
 
   "settings.tab.mapa": "Measures",
   "settings.tab.altura": "Height",

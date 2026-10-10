@@ -100,6 +100,9 @@ const es = {
   "settings.global.distancePanelOff": "Apagado",
   "settings.global.distancePanelGm": "Solo GM",
   "settings.global.distancePanelEveryone": "Todos",
+  "settings.general.help": "Ayuda",
+  "settings.general.helpTooltip": "Abre el manual de Rising Ranges (el README en GitHub) en una pestaña nueva.",
+  "settings.general.helpOpen": "Ver manual",
 
   "settings.tab.mapa": "Medidas",
   "settings.tab.altura": "Altura",

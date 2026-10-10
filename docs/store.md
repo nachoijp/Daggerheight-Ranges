@@ -86,7 +86,8 @@ handle.
 
 Set the room's language and hotkeys, and toggle whole feature groups on or
 off — including stripping the extension back to plain range-rings with no
-readings or height tracking. Every setting applies right away.
+readings or height tracking. Every setting applies right away, and a Help
+button in the General tab brings you back to the full manual.
 
 ![General settings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/general-tab.png)
 

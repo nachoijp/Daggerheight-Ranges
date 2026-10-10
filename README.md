@@ -62,7 +62,7 @@ Pick or select a token to list every other one with its Range and its horizontal
 
 ![General settings](docs/screenshots/general-tab.png)
 
-The room's language, the key that activates Measurement, and who gets the Distances panel. Every setting applies right away — no reload needed — and their defaults keep the extension looking the way it always has until you change them.
+The room's language, the key that activates Measurement, who gets the Distances panel, and a Help button that opens this manual. Every setting applies right away — no reload needed — and their defaults keep the extension looking the way it always has until you change them.
 
 ## Color-blind themes
 
