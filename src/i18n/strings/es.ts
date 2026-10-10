@@ -123,6 +123,10 @@ const es = {
   "settings.mapa.lecturaLabelTooltip": "Qué texto aparece junto a cada token medido.",
   "settings.mapa.ringLabel": "Etiqueta de los anillos",
   "settings.mapa.ringLabelTooltip": "Qué texto aparece junto a cada anillo.",
+  "settings.mapa.lecturaLabelSize": "Tamaño de la etiqueta",
+  "settings.mapa.lecturaLabelSizeTooltip": "Tamaño de las etiquetas de las Lecturas y de la altura del Origen.",
+  "settings.mapa.ringLabelSize": "Tamaño de la etiqueta",
+  "settings.mapa.ringLabelSizeTooltip": "Tamaño de las etiquetas de los anillos.",
   "settings.mapa.labelBand": "Banda",
   "settings.mapa.labelName": "Nombre",
   "settings.mapa.labelDistance": "Distancia",
@@ -173,6 +177,10 @@ const es = {
   "distances.above": "{distance} más arriba",
   "distances.below": "{distance} más abajo",
 
+  "theme.custom": "Personalizado",
+  "theme.color": "Color {n}",
+  "theme.addColor": "Agregar color",
+  "theme.removeColor": "Quitar el último color",
   "theme.storageUnavailable": "El almacenamiento no está disponible",
   "theme.storageUnavailableBody":
     "La extensión no puede cambiar el tema. Por favor habilitá las cookies de terceros.",

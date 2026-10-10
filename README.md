@@ -12,7 +12,7 @@ A relative, 3D-aware range and altitude measuring tool for [Owlbear Rodeo](https
 - **Multiple visualization styles** — icon stacks, rings, or filled circles, independently sized and colored.
 - **Exact numbers when you want them** — optionally add each token's exact distance to its Reading ("Close · 15ft"), and show height markers as icons, as a "⬆️ 30ft" label, or both.
 - **Distances panel** — a list of every token's Range, horizontal and vertical distance, and total distance from any token you pick, live as tokens move. For the GM only or for everyone; players never see hidden tokens.
-- **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia, and Protanopia.
+- **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia, Protanopia, or your own colors. Each player picks their own, and sees everything in it — rings, Readings and height markers, whoever made them.
 - **Bilingual** — Español / English, switchable per room.
 - **Configurable hotkeys and feature toggles** — strip it back to plain range-rings with no per-token readings or height tracking at all, if that's all you need.
 
@@ -44,7 +44,7 @@ Start from Dagger, Steel, or Dragons — duplicate one to edit it — or build y
 
 ![Map settings](docs/screenshots/map-tab.png)
 
-How each measured token is marked (an icon, a ring, a circle, or nothing), with its size and opacity under Advanced; what its label says (the Range, the exact distance, or both); what the rings around the Origin say; and an optional filter that highlights the tokens within a chosen Range. These are room settings, so they work with any set of ranges, presets included.
+How each measured token is marked (an icon, a ring, a circle, or nothing), with its size and opacity under Advanced; what its label says (the Range, the exact distance, or both) and how big; what the rings around the Origin say, and how big; and an optional filter that highlights the tokens within a chosen Range. These are room settings, so they work with any set of ranges, presets included.
 
 ## Height
 
@@ -67,6 +67,8 @@ The room's language, the key that activates Measurement, and who gets the Distan
 ## Color-blind themes
 
 ![Theme picker](docs/screenshots/themes.png)
+
+Pick Base or one of the three color-blind themes, or make a Custom one with up to 12 colors of your own. The theme is yours alone: everyone in the room sees the rings, Readings and height markers in the theme they picked, whoever is measuring.
 
 ## Installation
 

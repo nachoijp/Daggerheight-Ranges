@@ -4,6 +4,7 @@ uniform mat3 data2;
 uniform mat3 data3;
 uniform mat3 data4;
 uniform mat3 data5;
+uniform mat3 data6;
 uniform float minFalloff;
 uniform float maxFalloff;
 uniform int type;
@@ -48,6 +49,9 @@ half4 main(float2 coord) {
   
   addRing(color, alpha, data5[1].rgb, data5[0].x, data4[0].y, dist);
   addRing(color, alpha, data5[2].rgb, data5[0].y, data5[0].x, dist);
+
+  addRing(color, alpha, data6[1].rgb, data6[0].x, data5[0].y, dist);
+  addRing(color, alpha, data6[2].rgb, data6[0].y, data6[0].x, dist);
   
   return half4(vec3(color) * alpha, alpha);
 }

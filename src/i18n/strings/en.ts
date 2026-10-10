@@ -126,6 +126,10 @@ const en: Record<TranslationKey, string> = {
   "settings.mapa.lecturaLabelTooltip": "What text appears next to each measured token.",
   "settings.mapa.ringLabel": "Ring label",
   "settings.mapa.ringLabelTooltip": "What text appears next to each ring.",
+  "settings.mapa.lecturaLabelSize": "Label size",
+  "settings.mapa.lecturaLabelSizeTooltip": "Size of the Readings' labels and of the Origin's height label.",
+  "settings.mapa.ringLabelSize": "Label size",
+  "settings.mapa.ringLabelSizeTooltip": "Size of the rings' labels.",
   "settings.mapa.labelBand": "Range",
   "settings.mapa.labelName": "Name",
   "settings.mapa.labelDistance": "Distance",
@@ -176,6 +180,10 @@ const en: Record<TranslationKey, string> = {
   "distances.above": "{distance} higher",
   "distances.below": "{distance} lower",
 
+  "theme.custom": "Custom",
+  "theme.color": "Color {n}",
+  "theme.addColor": "Add color",
+  "theme.removeColor": "Remove the last color",
   "theme.storageUnavailable": "Storage is not available",
   "theme.storageUnavailableBody":
     "The extension can't change the theme. Please enable third-party cookies.",

@@ -34,8 +34,8 @@ and optional persistent height markers.
   from scratch.
 - **Multiple visualization styles** — icon stacks, rings, or filled circles,
   independently sized and colored.
-- **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia, and
-  Protanopia.
+- **Color-blind friendly themes** — Base, Deuteranopia, Tritanopia,
+  Protanopia, or your own colors; each player sees everything in their own.
 - **Bilingual** — Español / English, switchable per room.
 - **Configurable hotkeys and feature toggles** — strip it back to plain
   range-rings with no per-token readings or height tracking at all, if that's
@@ -68,7 +68,8 @@ names everything past the farthest one.
 
 How each measured token is marked (an icon, a ring, a circle, or nothing),
 what its label says (the Range, the exact distance, or both), and what the
-rings around the Origin say — with any set of ranges, presets included.
+rings around the Origin say, with the size of both labels — with any set of
+ranges, presets included.
 
 ![Map settings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/map-tab.png)
 
@@ -90,6 +91,10 @@ readings or height tracking. Every setting applies right away.
 ![General settings](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/general-tab.png)
 
 ## Color-blind themes
+
+Base, three color-blind themes, or a Custom one with up to 12 colors of your
+own. Each player picks their own and sees everything in it — rings, Readings
+and height markers — whoever is measuring.
 
 ![Theme picker](https://raw.githubusercontent.com/nachoijp/Rising-Ranges/main/docs/screenshots/themes.png)
 

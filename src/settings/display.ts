@@ -38,6 +38,10 @@ export type DisplaySettings = {
   lecturaStyle: LecturaStyle;
   lecturaLabel: LecturaLabel;
   ringLabel: RingLabel;
+  /** Scale of the Lecturas' labels and the Origen's height label (0.5-2). */
+  lecturaLabelSize: number;
+  /** Scale of the rings' labels (0.5-2). */
+  ringLabelSize: number;
   filterEnabled: boolean;
   /** Only meaningful while filterEnabled; a Banda of the active set, or ignored. */
   filterBandId?: string;
@@ -83,6 +87,7 @@ export const SIZE_RANGES = {
   circle: [0.5, 1.5] as [number, number],
   marker: [0.5, 2] as [number, number],
   markerDistance: [0, 0.4] as [number, number],
+  label: [0.5, 2] as [number, number],
 };
 
 /**
@@ -115,6 +120,8 @@ export function resolveDisplay(
     ringLabel:
       oneOf(RING_LABELS, s.ringLabel) ??
       parts(!bandSet.hideLabel, !bandSet.hideSize, ["none", "name", "distance", "both"]),
+    lecturaLabelSize: inRange(s.lecturaLabelSize, ...SIZE_RANGES.label) ?? 1,
+    ringLabelSize: inRange(s.ringLabelSize, ...SIZE_RANGES.label) ?? 1,
     filterEnabled,
     filterBandId,
     iconShape: oneOf(ICON_SHAPES, s.iconShape) ?? bandSet.iconShape ?? "circle",

@@ -1,6 +1,5 @@
 import OBR, {
   isImage,
-  isShape,
   Math2,
   type GridScale,
   type Image,
@@ -26,7 +25,7 @@ import {
   type OriginMarkerRequest,
 } from "./originMarkerSync";
 import { sameLecturaState, type LecturaContext, type LecturaState } from "../render/lecturaItems";
-import { buildBandRingItems, buildGradientShaders } from "../render/bandRings";
+import { buildBandRingItems, buildGradientShaders, buildOriginAnchor } from "../render/bandRings";
 import { getTokenRadius } from "../render/iconAnchor";
 import { getPluginId } from "../util/getPluginId";
 import { getMetadata } from "../util/getMetadata";
@@ -73,12 +72,12 @@ import {
 const REMOTE_SYNC_CUTOFF_MS = 14900;
 let remoteSyncCutoffTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** The rings and their labels — the only items Owlbear syncs while they move. */
+/** The Origen's anchor (see buildOriginAnchor) — the only item Owlbear syncs while it moves. */
 let bandInteraction: InteractionManager<Item[]> | null = null;
 /** The token being moved, when the Medición started on one. */
 let tokenInteraction: InteractionManager<Item> | null = null;
-/** The gradient's client-local shaders. */
-let shaders: Item[] = [];
+/** What follows the Origen on this client: the gradient's shaders, the rings and their labels. */
+let originItems: Item[] = [];
 let grabOffset: Vector2 = { x: 0, y: 0 };
 /** The token the Medición started on (if the player may move it), as it was at the start. */
 let downTarget: Item | null = null;
@@ -159,10 +158,11 @@ function scheduleRefresh(pointerPosition: Vector2) {
     refreshBandPositions();
     refreshLecturas();
     measureView?.moveHeightLabel(activeCenter);
-    if (shaders.length > 0) {
-      OBR.scene.local.updateItems(shaders, (items) => {
+    if (originItems.length > 0) {
+      OBR.scene.local.updateItems(originItems, (items) => {
         for (const item of items) {
-          item.position = activeCenter;
+          const offset = getMetadata(item.metadata, getPluginId("offset"), { x: 0, y: 0 });
+          item.position = Math2.subtract(activeCenter, offset);
         }
       });
     }
@@ -350,9 +350,9 @@ function cleanup() {
     tokenInteraction[1]();
     tokenInteraction = null;
   }
-  if (shaders.length > 0) {
-    OBR.scene.local.deleteItems(shaders.map((shader) => shader.id));
-    shaders = [];
+  if (originItems.length > 0) {
+    OBR.scene.local.deleteItems(originItems.map((item) => item.id));
+    originItems = [];
   }
   if (measureView) {
     measureView.end();
@@ -528,9 +528,9 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       activeOriginRadius = downTarget && isImage(downTarget) ? getTokenRadius(downTarget, dpi) : 0;
 
       // Added while the rings' interaction starts below, not before it.
-      shaders = buildGradientShaders(initialPosition, theme, bandSet, dpi, activeOriginRadius);
-      const addedShaders = shaders;
-      const shadersAdded = OBR.scene.local.addItems(addedShaders);
+      const shaders = buildGradientShaders(initialPosition, theme, bandSet, dpi, activeOriginRadius);
+      originItems = shaders;
+      const shadersAdded = OBR.scene.local.addItems(shaders);
 
       const heightMarkers = activeAltitudeEnabled ? allHeightMarkers : [];
       // A player's client still has hidden tokens (Owlbear just doesn't draw
@@ -562,28 +562,35 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       if (generation !== toolDownGeneration) {
         return;
       }
-      const bandItems = buildBandRingItems(
+      const ringItems = buildBandRingItems(
         activeCenter,
         theme,
         bandSet,
         dpi,
         gridScale,
         activeDisplay.ringLabel,
+        activeDisplay.ringLabelSize,
         activeOriginRadius
       );
+      const anchor = buildOriginAnchor(activeCenter);
       if (secretMedicion) {
-        for (const item of bandItems) {
+        for (const item of [anchor, ...ringItems]) {
           item.visible = false;
         }
       }
-      const [interaction] = await Promise.all([OBR.interaction.startItemInteraction(bandItems), shadersAdded]);
+      const [interaction] = await Promise.all([
+        OBR.interaction.startItemInteraction([anchor]),
+        shadersAdded,
+        OBR.scene.local.addItems(ringItems),
+      ]);
       if (generation !== toolDownGeneration) {
         interaction[1]();
-        // cleanup() may have run before the shaders finished adding.
-        OBR.scene.local.deleteItems(addedShaders.map((shader) => shader.id));
+        // cleanup() may have run before these finished adding.
+        OBR.scene.local.deleteItems([...shaders, ...ringItems].map((item) => item.id));
         return;
       }
       bandInteraction = interaction;
+      originItems = [...shaders, ...ringItems];
       remoteSyncCutoffTimer = setTimeout(() => {
         remoteSyncCutoffTimer = null;
         mirrorEnd();
@@ -609,11 +616,17 @@ export function createMeasureTool(language: Language, settings: GlobalSettings) 
       const heightLabel = activeAltitudeEnabled ? { center: activeCenter, text: activeHeightLabelText } : null;
       measureView = new LocalMeasureView(ctx);
       measureView.start(activeTokens, states, heightLabel);
-      // Only now: other clients attach the gradient and height label to this
-      // ring, so it has to exist for them first.
-      const firstRing = bandItems.find((item) => isShape(item));
-      if (firstRing && !secretMedicion) {
-        mirrorStart({ ctx, states: sharedStates(states), shaders, ringId: firstRing.id, heightLabel });
+      // Only now: other clients attach what they draw to the anchor, so it
+      // has to exist for them first.
+      if (!secretMedicion) {
+        mirrorStart({
+          ctx,
+          states: sharedStates(states),
+          shaders,
+          ringId: anchor.id,
+          heightLabel,
+          origin: { center: activeCenter, radius: activeOriginRadius },
+        });
       }
     },
     async onToolDragStart() {

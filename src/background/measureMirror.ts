@@ -3,23 +3,26 @@ import { getPluginId } from "../util/getPluginId";
 import {
   applyLecturaState,
   buildHeightLabelItem,
+  lecturaLabelScale,
   buildLecturaItems,
   getLecturaTokenId,
   heightLabelOffset,
   type LecturaContext,
   type LecturaState,
 } from "../render/lecturaItems";
+import { buildBandRingItems, buildGradientShaders } from "../render/bandRings";
+import { getStoredTheme } from "../theme/themes";
 
-// Shows a Medición's gradient, Lecturas and height label to every client,
-// not just the one measuring.
+// Shows a Medición's rings, gradient, Lecturas and height label to every
+// client, not just the one measuring, each in that client's own color theme.
 //
-// The rings travel in an interaction, but an interaction only syncs
-// position changes (not text, color or shape), and the gradient's shaders
-// can't go in one at all. So:
+// Only an invisible anchor at the Origen travels in an interaction (see
+// buildOriginAnchor): an interaction only syncs position changes (not text,
+// color or shape), and the gradient's shaders can't go in one at all. So:
 // - Everything here is client-local (OBR.scene.local), on every client.
-// - What follows the moving rings (gradient, height label) is attachedTo a
-//   ring, and Owlbear moves it along. That move is render-only: the item's
-//   stored position never changes.
+// - What follows the moving Origen (rings, gradient, height label) is
+//   attachedTo the anchor, and Owlbear moves it along. That move is
+//   render-only: the item's stored position never changes.
 // - Lecturas sit on tokens that don't move, so only their content changes:
 //   the measuring client broadcasts a Lectura's state only when it changes.
 
@@ -37,9 +40,13 @@ type StartMessage = {
   sessionId: number;
   ctx: LecturaContext;
   states: Record<string, LecturaState>;
+  /** The sender's gradient, for receivers before 1.2.0; newer ones draw their own from `origin`. */
   shaders: Item[];
+  /** The item everything here attaches to: the Origen's anchor (a ring before 1.2.0). */
   ringId: string;
   heightLabel: { center: Vector2; text: string } | null;
+  /** Missing from senders before 1.2.0, whose rings are visible themselves. */
+  origin?: { center: Vector2; radius: number };
 };
 type UpdateMessage = {
   type: "update";
@@ -88,7 +95,7 @@ export class LocalMeasureView {
         }
       }
       if (heightLabel) {
-        const label = buildHeightLabelItem(heightLabel.center, heightLabel.text);
+        const label = buildHeightLabelItem(heightLabel.center, heightLabel.text, lecturaLabelScale(this.ctx));
         if (heightLabel.attachedTo) {
           label.attachedTo = heightLabel.attachedTo;
         }
@@ -297,6 +304,26 @@ export function mirrorEnd() {
 
 type RemoteSession = { sessionId: number; view: LocalMeasureView };
 
+/** The gradient, rings and ring labels of someone else's Medición, in this client's theme. */
+function ownOriginItems(ctx: LecturaContext, center: Vector2, originRadius: number): Item[] {
+  const items = buildGradientShaders(center, ctx.theme, ctx.bandSet, ctx.dpi, originRadius);
+  if (ctx.gridScale && ctx.display) {
+    items.push(
+      ...buildBandRingItems(
+        center,
+        ctx.theme,
+        ctx.bandSet,
+        ctx.dpi,
+        ctx.gridScale,
+        ctx.display.ringLabel,
+        ctx.display.ringLabelSize,
+        originRadius
+      )
+    );
+  }
+  return items;
+}
+
 export function startMeasureMirrorReceiver() {
   // Keyed by the sender's connection, so two people measuring at once each
   // get their own; one message chain per sender keeps its messages in order
@@ -319,14 +346,17 @@ export function startMeasureMirrorReceiver() {
         OBR.player.getRole(),
       ]);
       const tokens = items.filter((item): item is Image => isImage(item) && (role === "GM" || item.visible));
-      const view = new LocalMeasureView(message.ctx);
+      const ctx: LecturaContext = { ...message.ctx, theme: getStoredTheme() };
+      const view = new LocalMeasureView(ctx);
       sessions.set(connectionId, { sessionId: message.sessionId, view });
-      const shaders = message.shaders.map((shader) => ({ ...shader, attachedTo: message.ringId }));
+      const originItems = message.origin
+        ? ownOriginItems(ctx, message.origin.center, message.origin.radius)
+        : message.shaders;
       await view.start(
         tokens,
         message.states,
         message.heightLabel && { ...message.heightLabel, attachedTo: message.ringId },
-        shaders
+        originItems.map((item) => ({ ...item, attachedTo: message.ringId }))
       );
       return;
     }

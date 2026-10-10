@@ -73,6 +73,11 @@ function displayOf(ctx: LecturaContext): DisplaySettings {
   return ctx.display ?? resolveDisplay(undefined, ctx.bandSet, { showLecturaDistance: ctx.showDistance });
 }
 
+/** Missing from the display settings of measuring clients before 1.2.0. */
+export function lecturaLabelScale(ctx: LecturaContext): number {
+  return displayOf(ctx).lecturaLabelSize ?? 1;
+}
+
 /** Owlbear's own label font size. */
 export const LABEL_FONT_SIZE = 16;
 
@@ -107,7 +112,8 @@ export function getBandLabel(
   text: string,
   backgroundColor: string,
   textColor: string,
-  opacityScale = 1
+  opacityScale = 1,
+  scale = 1
 ) {
   const label = buildLabel()
     .fillColor(textColor)
@@ -117,8 +123,9 @@ export function getBandLabel(
     .pointerDirection("UP")
     .backgroundOpacity(0.8 * opacityScale)
     .backgroundColor(backgroundColor)
-    .padding(8)
-    .cornerRadius(20)
+    .fontSize(LABEL_FONT_SIZE * scale)
+    .padding(8 * scale)
+    .cornerRadius(20 * scale)
     .pointerHeight(0)
     .metadata({
       [getPluginId("offset")]: offset,
@@ -304,7 +311,8 @@ function buildLecturaLabelItem(token: Image, state: LecturaState, ctx: LecturaCo
     getLecturaLabelText(state, ctx),
     getColorString(color),
     textColor,
-    state.withinFilter ? 1 : 0
+    state.withinFilter ? 1 : 0,
+    lecturaLabelScale(ctx)
   );
   return withLecturaMetadata(item, token.id, "label");
 }
@@ -371,14 +379,16 @@ export function applyLecturaState(
   }
 }
 
-export function buildHeightLabelItem(center: Vector2, text: string): Item {
+export function buildHeightLabelItem(center: Vector2, text: string, scale: number): Item {
   const textColor = getLabelTextColor(lecturaColor, 180);
   const item = getBandLabel(
     center,
     heightLabelOffset,
     text,
     getColorString(lecturaColor),
-    textColor
+    textColor,
+    1,
+    scale
   );
   return {
     ...item,

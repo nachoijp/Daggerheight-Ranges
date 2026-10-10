@@ -16,6 +16,7 @@ import {
 } from "./display";
 
 const percent = (value: number) => `${Math.round(value * 100)}%`;
+const times = (value: number) => `${value.toFixed(1)}x`;
 
 const STYLE_LABEL_KEYS = {
   icon: "settings.visualization.icon",
@@ -64,7 +65,7 @@ export function MapaTab({
               min={SIZE_RANGES.icon[0]}
               max={SIZE_RANGES.icon[1]}
               step={0.1}
-              valueLabelFormat={(value) => `${value.toFixed(1)}x`}
+              valueLabelFormat={times}
             />
           )}
           {style === "ring" && (
@@ -135,6 +136,18 @@ export function MapaTab({
           { value: "both", label: t("settings.mapa.labelBoth") },
         ]}
       />
+      {/* Always shown: it also sizes the Origen's height label. */}
+      <LabeledSlider
+        id="lectura-label-size-label"
+        label={t("settings.mapa.lecturaLabelSize")}
+        tooltip={t("settings.mapa.lecturaLabelSizeTooltip")}
+        value={display.lecturaLabelSize}
+        onChange={(lecturaLabelSize) => onChange({ lecturaLabelSize })}
+        min={SIZE_RANGES.label[0]}
+        max={SIZE_RANGES.label[1]}
+        step={0.1}
+        valueLabelFormat={times}
+      />
       <ChoiceGroup<RingLabel>
         id="ring-label-label"
         label={t("settings.mapa.ringLabel")}
@@ -148,6 +161,19 @@ export function MapaTab({
           { value: "both", label: t("settings.mapa.labelBothRing") },
         ]}
       />
+      {display.ringLabel !== "none" && (
+        <LabeledSlider
+          id="ring-label-size-label"
+          label={t("settings.mapa.ringLabelSize")}
+          tooltip={t("settings.mapa.ringLabelSizeTooltip")}
+          value={display.ringLabelSize}
+          onChange={(ringLabelSize) => onChange({ ringLabelSize })}
+          min={SIZE_RANGES.label[0]}
+          max={SIZE_RANGES.label[1]}
+          step={0.1}
+          valueLabelFormat={times}
+        />
+      )}
       <Stack>
         <Stack sx={{ px: 1 }}>
           <FieldLabel id="filter-label" tooltip={t("settings.medicion.filterTooltip")}>

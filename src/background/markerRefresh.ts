@@ -4,11 +4,10 @@ import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { markerLookFromMetadata, refreshAllTokenHeightMarkers } from "../tokenHeight/markers";
 
 // Keeps the height markers in step with what they're drawn from (the
-// Bandas, the language of their names, the room's marker look, the color
-// theme) while writing as little as possible — Owlbear rate-limits writes
+// Bandas, the language of their names, the room's marker look) while
+// writing as little as possible — Owlbear rate-limits writes
 // ("Too many requests"), and the Medición's own writes need the room:
-// - only the GM's client writes (markers are shared, so they carry the GM's
-//   color theme);
+// - only the GM's client writes;
 // - only when something they depend on changed — not on every metadata
 //   change, which other extensions and Owlbear itself make too;
 // - and only the markers that come out different.
@@ -71,13 +70,6 @@ export async function startMarkerRefresh() {
     const becameGm = player.role === "GM" && !isGm;
     isGm = player.role === "GM";
     if (becameGm) {
-      refresh();
-    }
-  });
-  // The GM's color theme is stored in localStorage by another page of this
-  // extension, which tells this one it changed.
-  window.addEventListener("storage", (event) => {
-    if (event.key === "theme") {
       refresh();
     }
   });

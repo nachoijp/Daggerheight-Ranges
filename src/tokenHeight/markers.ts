@@ -9,7 +9,7 @@ import OBR, {
 import { getPluginId } from "../util/getPluginId";
 import { isPlainObject } from "../util/isPlainObject";
 import { getColorString } from "../util/color";
-import { getStoredTheme, Theme } from "../theme/themes";
+import { type Theme } from "../theme/themes";
 import { BandSet, IconShape } from "../engine/types";
 import { heightBandIndex, markerIconCount } from "../engine/heights";
 import { measuredBands } from "../engine/bands";
@@ -107,22 +107,27 @@ async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; look: Marker
   return { bandSet: bandSetFromMetadata(sceneMetadata), look: markerLookFromMetadata(sceneMetadata) };
 }
 
-// In the "label" style the marker is still there (it's what stores the
-// token's height, and what the label is drawn from) — just invisible.
-const MARKER_STROKE_OPACITY = 0.65;
-function markerOpacity(look: MarkerLook): number {
-  return look.style === "label" ? 0 : look.tuning.opacity;
+// The marker in the scene is never drawn: it stores the token's height and
+// the shape of its icons, and every client draws the icons and label from
+// it in its own color theme (see heightOverlays.ts). It's the same whoever
+// writes it, so it has no color of its own.
+const MARKER_FILL = "#000000";
+export const MARKER_STROKE_COLOR = "#111827";
+export const MARKER_STROKE_OPACITY = 0.65;
+
+/** The color of the icons and label of a marker at this height, in a theme. */
+export function markerColor(height: number, bandSet: BandSet, theme: Theme): string {
+  return getColorString(theme.colors[(heightBandIndex(height, bandSet) ?? 0) % theme.colors.length]);
 }
 
-/** What a marker at a given height looks like: its icon stack, color and stroke. */
-function markerAppearance(height: number, bandSet: BandSet, theme: Theme, dpi: number, look: MarkerLook) {
+/** What a marker at a given height looks like: its icon stack and stroke. */
+function markerAppearance(height: number, bandSet: BandSet, dpi: number, look: MarkerLook) {
   const bandIndex = heightBandIndex(height, bandSet) ?? 0;
   const shape = measuredBands(bandSet)[bandIndex]?.iconShape ?? look.iconShape;
   const direction: Direction = height > 0 ? "up" : "down";
   const { position, size } = look.tuning;
   return {
     commands: buildIconStackCommands(shape, markerIconCount(height, bandSet), dpi, size, position, direction),
-    color: getColorString(theme.colors[bandIndex % theme.colors.length]),
     strokeWidth: dpi * getStrokeWidthRatio(shape),
   };
 }
@@ -131,22 +136,21 @@ function markerName(height: number): string {
   return `Rising Ranges: ${height > 0 ? "+" : ""}${height}`;
 }
 
-/** Sets a marker draft's shape, color, position and state in place (shared by updates and refreshes). */
+/** Sets a marker draft's shape, position and state in place (shared by updates and refreshes). */
 function applyMarkerGeometry(
   marker: Path,
   token: Image,
   height: number,
   bandSet: BandSet,
-  theme: Theme,
   dpi: number,
   look: MarkerLook
 ): void {
-  const { commands, color, strokeWidth } = markerAppearance(height, bandSet, theme, dpi, look);
+  const { commands, strokeWidth } = markerAppearance(height, bandSet, dpi, look);
   marker.commands = commands;
-  marker.style.fillColor = color;
+  marker.style.fillColor = MARKER_FILL;
   marker.style.strokeWidth = strokeWidth;
-  marker.style.fillOpacity = markerOpacity(look);
-  marker.style.strokeOpacity = MARKER_STROKE_OPACITY * markerOpacity(look);
+  marker.style.fillOpacity = 0;
+  marker.style.strokeOpacity = 0;
   marker.position = computeIconAnchor(token, dpi, look.tuning.position, look.tuning.distance);
   marker.visible = token.visible;
   marker.name = markerName(height);
@@ -157,17 +161,16 @@ function buildTokenHeightMarker(
   token: Image,
   height: number,
   bandSet: BandSet,
-  theme: Theme,
   dpi: number,
   look: MarkerLook
 ): Path {
-  const { commands, color, strokeWidth } = markerAppearance(height, bandSet, theme, dpi, look);
+  const { commands, strokeWidth } = markerAppearance(height, bandSet, dpi, look);
   return buildPath()
     .commands(commands)
-    .fillColor(color)
-    .fillOpacity(markerOpacity(look))
-    .strokeColor("#111827")
-    .strokeOpacity(MARKER_STROKE_OPACITY * markerOpacity(look))
+    .fillColor(MARKER_FILL)
+    .fillOpacity(0)
+    .strokeColor(MARKER_STROKE_COLOR)
+    .strokeOpacity(0)
     .strokeWidth(strokeWidth)
     .position(computeIconAnchor(token, dpi, look.tuning.position, look.tuning.distance))
     .attachedTo(token.id)
@@ -212,7 +215,6 @@ export async function setTokenHeightMarker(
     knownBandSet !== undefined && knownDpi !== undefined && knownLook !== undefined
       ? [{ bandSet: knownBandSet, look: knownLook }, knownDpi]
       : await Promise.all([getActiveMarkerConfig(), OBR.scene.grid.getDpi()]);
-  const theme = getStoredTheme();
   const tokenById = new Map(tokens.map((token) => [token.id, token]));
   const tokenIds = tokens.map((token) => token.id);
   const existing = knownExisting
@@ -236,7 +238,7 @@ export async function setTokenHeightMarker(
           if (!token) {
             continue;
           }
-          applyMarkerGeometry(marker, token, height, bandSet, theme, dpi, look);
+          applyMarkerGeometry(marker, token, height, bandSet, dpi, look);
         }
       }
     );
@@ -245,7 +247,7 @@ export async function setTokenHeightMarker(
   const newMarkers = tokens
     .filter((token) => !tokensWithExisting.has(token.id))
     .map((token) =>
-      buildTokenHeightMarker(token, height, bandSet, theme, dpi, look)
+      buildTokenHeightMarker(token, height, bandSet, dpi, look)
     );
   if (newMarkers.length > 0) {
     await OBR.scene.items.addItems(newMarkers);
@@ -282,7 +284,7 @@ export async function clearAllTokenHeightMarkers(): Promise<void> {
 }
 
 /**
- * Redraws every marker from the current Bandas, look and theme (a Banda may
+ * Redraws every marker from the current Bandas and look (a Banda may
  * have been renamed or resized since), rewriting an old-style marker as a
  * plain height while at it. Updated in place, so they don't flicker for
  * everyone.
@@ -296,7 +298,6 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
   if (markers.length === 0) {
     return;
   }
-  const theme = getStoredTheme();
   const tokenIds = markers
     .map((marker) => marker.attachedTo)
     .filter((id): id is string => Boolean(id));
@@ -316,7 +317,7 @@ export async function refreshAllTokenHeightMarkers(): Promise<void> {
     if (height === undefined || !token) {
       return;
     }
-    applyMarkerGeometry(marker, token, height, bandSet, theme, dpi, look);
+    applyMarkerGeometry(marker, token, height, bandSet, dpi, look);
   };
   const changedIds = markers
     .filter((marker) => {

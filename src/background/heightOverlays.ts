@@ -1,5 +1,6 @@
 import OBR, {
   buildLabel,
+  buildPath,
   isImage,
   type GridScale,
   type Image,
@@ -7,35 +8,39 @@ import OBR, {
   type Path,
 } from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
-import { getColorString, getLabelTextColor } from "../util/color";
+import { getLabelTextColor } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
-import { getStoredTheme } from "../theme/themes";
+import { getStoredTheme, THEME_STORAGE_KEYS } from "../theme/themes";
 import { BandSet, IconPosition } from "../engine/types";
 import { bandSetFromMetadata } from "../bandSets/bandSets";
 import { globalSettingsFromMetadata } from "../settings/globalSettings";
 import { computeIconAnchor } from "../render/iconAnchor";
 import { iconStackExtent } from "../render/iconStack";
 import { followMap, LABEL_FONT_SIZE } from "../render/lecturaItems";
-import { heightBandIndex } from "../engine/heights";
 import {
   getTokenHeight,
   isTokenHeightMarker,
+  MARKER_STROKE_COLOR,
+  MARKER_STROKE_OPACITY,
+  markerColor,
   markerLookFromMetadata,
   type MarkerLook,
 } from "../tokenHeight/markers";
 
-// The "⬆️ 30ft" label of the "label" and "both" marker styles: drawn where
-// the marker's icon stack would be ("label", the marker itself is then
-// transparent — see markers.ts) or just past it ("both").
+// What a height marker shows: its icon stack ("icons" and "both" styles)
+// and its "⬆️ 30ft" label ("label", where the icons would be, and "both",
+// just past them). The marker in the scene only stores the height and the
+// icons' shape, and is never drawn itself (see markers.ts).
 //
 // Client-local on every client, derived from the markers themselves, rather
-// than real scene items: every client runs this background script, so real
-// items would need one designated writer to avoid duplicates (and players
-// can't always write), and switching styles would mean a scene-wide rewrite.
-// Local items cost nothing to add or drop, and each one is attachedTo its
-// token, so Owlbear moves it with the token like it does the marker.
+// than real scene items: each client draws them in its own color theme;
+// every client runs this background script, so real items would need one
+// designated writer to avoid duplicates (and players can't always write);
+// and switching styles would mean a scene-wide rewrite. Local items cost
+// nothing to add or drop, and each one is attachedTo its token, so Owlbear
+// moves it with the token like it does the marker.
 //
-// A label's position is only ever set when it's created: whenever anything
+// An item's position is only ever set when it's created: whenever anything
 // it shows changes, it's deleted and rebuilt from the token's current
 // position, rather than repositioned in place — an attached local item's
 // stored position doesn't follow its token (see measureMirror.ts), so
@@ -53,7 +58,7 @@ let gridScale: GridScale | null = null;
 let role: "GM" | "PLAYER" = "PLAYER";
 let sceneReady = false;
 
-/** tokenId -> the label drawn for it. */
+/** "icon:" or "label:" + tokenId -> the item drawn for it. */
 const drawn = new Map<string, Drawn>();
 // Set whenever this client may have labels it isn't tracking (a fresh
 // scene, or a write that failed partway): the next pass deletes every one
@@ -101,8 +106,7 @@ function wantedLabel(
     return null;
   }
   const text = `${height > 0 ? ARROW.up : ARROW.down} ${formatDistance(scale, Math.abs(height))}`;
-  const theme = getStoredTheme();
-  const color = theme.colors[(heightBandIndex(height, bandSet) ?? 0) % theme.colors.length];
+  const color = markerColor(height, bandSet, getStoredTheme());
   const { position: side, distance: iconDistance, opacity, size } = look.tuning;
   // In "label" the label takes the icons' place; in "both" it goes past them.
   const extent = look.style === "both" ? iconStackExtent(marker.commands) : NO_EXTENT;
@@ -138,7 +142,7 @@ function wantedLabel(
         .cornerRadius(12 * size)
         .fillColor(getLabelTextColor(color, 180))
         .fillOpacity(opacity)
-        .backgroundColor(getColorString(color))
+        .backgroundColor(color)
         .backgroundOpacity(0.85 * opacity)
         .attachedTo(token.id)
         .layer("ATTACHMENT")
@@ -152,6 +156,50 @@ function wantedLabel(
   };
 }
 
+function wantedIcons(marker: Path, token: Image, bandSet: BandSet, look: MarkerLook): Wanted | null {
+  const height = getTokenHeight(marker, bandSet);
+  if (height === undefined) {
+    return null;
+  }
+  const color = markerColor(height, bandSet, getStoredTheme());
+  const { position: side, distance: iconDistance, opacity } = look.tuning;
+  const signature = JSON.stringify([
+    marker.commands,
+    marker.style.strokeWidth,
+    color,
+    side,
+    iconDistance,
+    opacity,
+    dpi,
+    token.scale,
+    token.image.width,
+    token.image.height,
+    token.grid,
+    token.visible,
+  ]);
+  return {
+    signature,
+    build: () => {
+      const icons = buildPath()
+        .commands(marker.commands)
+        .fillColor(color)
+        .fillOpacity(opacity)
+        .strokeColor(MARKER_STROKE_COLOR)
+        .strokeOpacity(MARKER_STROKE_OPACITY * opacity)
+        .strokeWidth(marker.style.strokeWidth)
+        .position(computeIconAnchor(token, dpi, side, iconDistance))
+        .attachedTo(token.id)
+        .layer("ATTACHMENT")
+        .locked(true)
+        .disableHit(true)
+        .visible(token.visible)
+        .build();
+      icons.metadata[OVERLAY_KEY] = { tokenId: token.id };
+      return icons;
+    },
+  };
+}
+
 function computeWanted(): Map<string, Wanted> {
   const wanted = new Map<string, Wanted>();
   if (!sceneReady || !dpi || !gridScale) {
@@ -159,7 +207,7 @@ function computeWanted(): Map<string, Wanted> {
   }
   const settings = globalSettingsFromMetadata(metadata);
   const look = markerLookFromMetadata(metadata);
-  if (!(settings.enableAltitude ?? true) || look.style === "icons") {
+  if (!(settings.enableAltitude ?? true)) {
     return wanted;
   }
   const bandSet = bandSetFromMetadata(metadata);
@@ -173,9 +221,13 @@ function computeWanted(): Map<string, Wanted> {
     if (!token || (role !== "GM" && !token.visible)) {
       continue;
     }
-    const label = wantedLabel(marker, token, bandSet, gridScale, look);
+    const icons = look.style === "label" ? null : wantedIcons(marker, token, bandSet, look);
+    if (icons) {
+      wanted.set(`icon:${token.id}`, icons);
+    }
+    const label = look.style === "icons" ? null : wantedLabel(marker, token, bandSet, gridScale, look);
     if (label) {
-      wanted.set(token.id, label);
+      wanted.set(`label:${token.id}`, label);
     }
   }
   return wanted;
@@ -229,7 +281,7 @@ function schedule() {
       try {
         await reconcile();
       } catch (error) {
-        console.error("Rising Ranges: failed to draw height labels", error);
+        console.error("Rising Ranges: failed to draw height markers", error);
         resync = true;
       }
     }
@@ -256,7 +308,7 @@ async function loadScene() {
 export async function startHeightOverlays() {
   OBR.scene.onReadyChange((ready) => {
     if (ready) {
-      loadScene().catch((error) => console.error("Rising Ranges: failed to load height labels", error));
+      loadScene().catch((error) => console.error("Rising Ranges: failed to load height markers", error));
     } else {
       // The scene's local items go with it.
       sceneReady = false;
@@ -284,7 +336,7 @@ export async function startHeightOverlays() {
   // The color theme is picked on another page of this extension and only
   // stored in localStorage, which tells other same-origin pages it changed.
   window.addEventListener("storage", (event) => {
-    if (event.key === "theme" && drawn.size > 0) {
+    if (event.key && THEME_STORAGE_KEYS.includes(event.key) && drawn.size > 0) {
       schedule();
     }
   });

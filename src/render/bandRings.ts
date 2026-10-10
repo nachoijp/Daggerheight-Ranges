@@ -62,6 +62,26 @@ function buildRing(
     .build();
 }
 
+/**
+ * The one item of a Medición that Owlbear syncs to every client: an
+ * invisible point at the Origen. Each client draws the rings, their labels
+ * and the gradient itself, in its own color theme, and attaches them to
+ * this so they follow it.
+ */
+export function buildOriginAnchor(center: Vector2): Item {
+  return buildShape()
+    .shapeType("CIRCLE")
+    .width(2)
+    .height(2)
+    .fillOpacity(0)
+    .strokeOpacity(0)
+    .strokeWidth(0)
+    .position(center)
+    .disableHit(true)
+    .layer("POPOVER")
+    .build();
+}
+
 /** One ring per Banda, plus its label when the room's ring label shows anything. */
 export function buildBandRingItems(
   center: Vector2,
@@ -70,6 +90,7 @@ export function buildBandRingItems(
   dpi: number,
   gridScale: GridScale,
   ringLabel: RingLabel,
+  ringLabelSize: number,
   originRadius: number
 ): Item[] {
   const items: Item[] = [];
@@ -90,7 +111,7 @@ export function buildBandRingItems(
     }
     if (parts.length > 0) {
       const labelOffset = { x: 0, y: radius + LABEL_OFFSET };
-      items.push(getBandLabel(center, labelOffset, parts.join(" "), color, getLabelTextColor(baseColor, 180)));
+      items.push(getBandLabel(center, labelOffset, parts.join(" "), color, getLabelTextColor(baseColor, 180), 1, ringLabelSize));
     }
   });
   return items;
@@ -98,7 +119,7 @@ export function buildBandRingItems(
 
 /**
  * The darkening and the colored gradient behind the rings: two viewport
- * shaders. ring.frag takes up to 10 Bandas as five mat3 uniforms, each
+ * shaders. ring.frag takes up to 12 Bandas as six mat3 uniforms, each
  * holding two: [r1, r2, 0, R1, G1, B1, R2, G2, B2] (radius in px, colors
  * 0-1).
  */
@@ -109,11 +130,8 @@ export function buildGradientShaders(
   dpi: number,
   originRadius: number
 ): Item[] {
-  if (bandSet.bands.length > 10) {
-    console.warn(`Bandas "${bandSet.name}" has more than 10 bands; the gradient shows only the first 10`);
-  }
   const uniforms: Uniform[] = [];
-  for (let pair = 0; pair < 5; pair++) {
+  for (let pair = 0; pair < 6; pair++) {
     const [first, second] = [pair * 2, pair * 2 + 1];
     const color1 = theme.colors[first % theme.colors.length];
     const color2 = theme.colors[second % theme.colors.length];
