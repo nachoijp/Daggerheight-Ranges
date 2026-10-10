@@ -14,7 +14,7 @@ import {
 import { getPluginId } from "../util/getPluginId";
 import { getMetadata } from "../util/getMetadata";
 import { Color, Theme } from "../theme/themes";
-import { getColorString, getLabelTextColor } from "../util/color";
+import { getColorString, getIconStrokeColor, getLabelTextStyle } from "../util/color";
 import { BandSet } from "../engine/types";
 import { buildIconStackCommands, getStrokeWidthRatio, type Direction } from "./iconStack";
 import { computeIconAnchor, getTokenBounds, oppositeIconPosition } from "./iconAnchor";
@@ -110,20 +110,25 @@ export function getBandLabel(
   center: Vector2,
   offset: Vector2,
   text: string,
-  backgroundColor: string,
-  textColor: string,
+  color: Color,
   opacityScale = 1,
   scale = 1
 ) {
+  const fontSize = LABEL_FONT_SIZE * scale;
+  const textStyle = getLabelTextStyle(color, fontSize);
   const label = buildLabel()
-    .fillColor(textColor)
+    .fillColor(textStyle.fillColor)
     .fillOpacity(1.0 * opacityScale)
+    .fontWeight(textStyle.fontWeight)
+    .strokeColor(textStyle.strokeColor)
+    .strokeOpacity(textStyle.strokeOpacity * opacityScale)
+    .strokeWidth(textStyle.strokeWidth)
     .plainText(text)
     .position(Math2.subtract(center, offset))
     .pointerDirection("UP")
     .backgroundOpacity(0.8 * opacityScale)
-    .backgroundColor(backgroundColor)
-    .fontSize(LABEL_FONT_SIZE * scale)
+    .backgroundColor(getColorString(color))
+    .fontSize(fontSize)
     .padding(8 * scale)
     .cornerRadius(20 * scale)
     .pointerHeight(0)
@@ -244,7 +249,8 @@ function iconAnchor(token: Image, ctx: LecturaContext) {
 function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaContext): Item {
   const { bandSet, theme, dpi } = ctx;
   const display = displayOf(ctx);
-  const color = getColorString(lecturaColorFor(state.index, theme));
+  const baseColor = lecturaColorFor(state.index, theme);
+  const color = getColorString(baseColor);
   const opacityScale = lecturaOpacityScale(state.withinFilter);
 
   if (display.lecturaStyle === "icon") {
@@ -253,7 +259,7 @@ function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaC
       .commands(iconCommands(state, ctx))
       .fillColor(color)
       .fillOpacity(opacity * opacityScale)
-      .strokeColor("#111827")
+      .strokeColor(getIconStrokeColor(baseColor))
       .strokeOpacity(0.65 * opacity * opacityScale)
       .strokeWidth(dpi * getStrokeWidthRatio(iconShapeFor(state, ctx)))
       .position(iconAnchor(token, ctx))
@@ -300,7 +306,6 @@ function buildLecturaVisualItem(token: Image, state: LecturaState, ctx: LecturaC
 
 function buildLecturaLabelItem(token: Image, state: LecturaState, ctx: LecturaContext): Item {
   const color = lecturaColorFor(state.index, ctx.theme);
-  const textColor = getLabelTextColor(color, 180);
   // Unlike the icon/ring/circle visual (dimmed, still visible for context),
   // a filtered-out token's label is hidden outright — the Filtro is meant
   // to answer "which tokens match", and a dimmed label is still readable
@@ -309,8 +314,7 @@ function buildLecturaLabelItem(token: Image, state: LecturaState, ctx: LecturaCo
     token.position,
     lecturaLabelOffset,
     getLecturaLabelText(state, ctx),
-    getColorString(color),
-    textColor,
+    color,
     state.withinFilter ? 1 : 0,
     lecturaLabelScale(ctx)
   );
@@ -349,19 +353,26 @@ export function applyLecturaState(
     const labelOpacity = state.withinFilter ? 1 : 0;
     const color = lecturaColorFor(state.index, theme);
     item.text.plainText = getLecturaLabelText(state, ctx);
-    item.text.style.fillColor = getLabelTextColor(color, 180);
+    const textStyle = getLabelTextStyle(color, item.text.style.fontSize);
+    item.text.style.fillColor = textStyle.fillColor;
     item.text.style.fillOpacity = labelOpacity;
+    item.text.style.fontWeight = textStyle.fontWeight;
+    item.text.style.strokeColor = textStyle.strokeColor;
+    item.text.style.strokeOpacity = textStyle.strokeOpacity * labelOpacity;
+    item.text.style.strokeWidth = textStyle.strokeWidth;
     item.style.backgroundColor = getColorString(color);
     item.style.backgroundOpacity = 0.8 * labelOpacity;
     return;
   }
-  const color = getColorString(lecturaColorFor(state.index, theme));
+  const baseColor = lecturaColorFor(state.index, theme);
+  const color = getColorString(baseColor);
   if (display.lecturaStyle === "icon" && isPath(item)) {
     const { opacity } = display.lecturaIcon;
     item.position = iconAnchor(token, ctx);
     item.commands = iconCommands(state, ctx);
     item.style.fillColor = color;
     item.style.fillOpacity = opacity * opacityScale;
+    item.style.strokeColor = getIconStrokeColor(baseColor);
     item.style.strokeOpacity = 0.65 * opacity * opacityScale;
     item.style.strokeWidth = dpi * getStrokeWidthRatio(iconShapeFor(state, ctx));
   } else if (isShape(item)) {
@@ -380,16 +391,7 @@ export function applyLecturaState(
 }
 
 export function buildHeightLabelItem(center: Vector2, text: string, scale: number): Item {
-  const textColor = getLabelTextColor(lecturaColor, 180);
-  const item = getBandLabel(
-    center,
-    heightLabelOffset,
-    text,
-    getColorString(lecturaColor),
-    textColor,
-    1,
-    scale
-  );
+  const item = getBandLabel(center, heightLabelOffset, text, lecturaColor, 1, scale);
   return {
     ...item,
     metadata: { ...item.metadata, [getPluginId("heightLabel")]: true },

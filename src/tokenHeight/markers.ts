@@ -8,8 +8,7 @@ import OBR, {
 } from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
 import { isPlainObject } from "../util/isPlainObject";
-import { getColorString } from "../util/color";
-import { type Theme } from "../theme/themes";
+import { type Color, type Theme } from "../theme/themes";
 import { BandSet, IconShape } from "../engine/types";
 import { heightBandIndex, markerIconCount } from "../engine/heights";
 import { measuredBands } from "../engine/bands";
@@ -112,12 +111,12 @@ async function getActiveMarkerConfig(): Promise<{ bandSet: BandSet; look: Marker
 // it in its own color theme (see heightOverlays.ts). It's the same whoever
 // writes it, so it has no color of its own.
 const MARKER_FILL = "#000000";
-export const MARKER_STROKE_COLOR = "#111827";
+const MARKER_STROKE_COLOR = "#111827";
 export const MARKER_STROKE_OPACITY = 0.65;
 
 /** The color of the icons and label of a marker at this height, in a theme. */
-export function markerColor(height: number, bandSet: BandSet, theme: Theme): string {
-  return getColorString(theme.colors[(heightBandIndex(height, bandSet) ?? 0) % theme.colors.length]);
+export function markerBaseColor(height: number, bandSet: BandSet, theme: Theme): Color {
+  return theme.colors[(heightBandIndex(height, bandSet) ?? 0) % theme.colors.length];
 }
 
 /** What a marker at a given height looks like: its icon stack and stroke. */

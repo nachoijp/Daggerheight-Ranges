@@ -8,7 +8,7 @@ import OBR, {
   type Path,
 } from "@owlbear-rodeo/sdk";
 import { getPluginId } from "../util/getPluginId";
-import { getLabelTextColor } from "../util/color";
+import { getColorString, getIconStrokeColor, getLabelTextStyle } from "../util/color";
 import { formatDistance } from "../util/flattenGridScale";
 import { getStoredTheme, THEME_STORAGE_KEYS } from "../theme/themes";
 import { BandSet, IconPosition } from "../engine/types";
@@ -20,9 +20,8 @@ import { followMap, LABEL_FONT_SIZE } from "../render/lecturaItems";
 import {
   getTokenHeight,
   isTokenHeightMarker,
-  MARKER_STROKE_COLOR,
   MARKER_STROKE_OPACITY,
-  markerColor,
+  markerBaseColor,
   markerLookFromMetadata,
   type MarkerLook,
 } from "../tokenHeight/markers";
@@ -106,7 +105,8 @@ function wantedLabel(
     return null;
   }
   const text = `${height > 0 ? ARROW.up : ARROW.down} ${formatDistance(scale, Math.abs(height))}`;
-  const color = markerColor(height, bandSet, getStoredTheme());
+  const baseColor = markerBaseColor(height, bandSet, getStoredTheme());
+  const color = getColorString(baseColor);
   const { position: side, distance: iconDistance, opacity, size } = look.tuning;
   // In "label" the label takes the icons' place; in "both" it goes past them.
   const extent = look.style === "both" ? iconStackExtent(marker.commands) : NO_EXTENT;
@@ -131,17 +131,23 @@ function wantedLabel(
     signature,
     build: () => {
       const { position, pointer } = textPlacement(token, side, iconDistance, extent, gap);
+      const fontSize = LABEL_FONT_SIZE * size;
+      const textStyle = getLabelTextStyle(baseColor, fontSize);
       const label = buildLabel()
         .plainText(text)
         .position(position)
         .pointerDirection(pointer)
         .pointerHeight(0)
         // The marker's size setting scales the label like it does the icons
-        .fontSize(LABEL_FONT_SIZE * size)
+        .fontSize(fontSize)
         .padding(4 * size)
         .cornerRadius(12 * size)
-        .fillColor(getLabelTextColor(color, 180))
+        .fillColor(textStyle.fillColor)
         .fillOpacity(opacity)
+        .fontWeight(textStyle.fontWeight)
+        .strokeColor(textStyle.strokeColor)
+        .strokeOpacity(textStyle.strokeOpacity * opacity)
+        .strokeWidth(textStyle.strokeWidth)
         .backgroundColor(color)
         .backgroundOpacity(0.85 * opacity)
         .attachedTo(token.id)
@@ -161,7 +167,9 @@ function wantedIcons(marker: Path, token: Image, bandSet: BandSet, look: MarkerL
   if (height === undefined) {
     return null;
   }
-  const color = markerColor(height, bandSet, getStoredTheme());
+  const baseColor = markerBaseColor(height, bandSet, getStoredTheme());
+  const color = getColorString(baseColor);
+  const strokeColor = getIconStrokeColor(baseColor);
   const { position: side, distance: iconDistance, opacity } = look.tuning;
   const signature = JSON.stringify([
     marker.commands,
@@ -184,7 +192,7 @@ function wantedIcons(marker: Path, token: Image, bandSet: BandSet, look: MarkerL
         .commands(marker.commands)
         .fillColor(color)
         .fillOpacity(opacity)
-        .strokeColor(MARKER_STROKE_COLOR)
+        .strokeColor(strokeColor)
         .strokeOpacity(MARKER_STROKE_OPACITY * opacity)
         .strokeWidth(marker.style.strokeWidth)
         .position(computeIconAnchor(token, dpi, side, iconDistance))

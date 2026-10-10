@@ -10,7 +10,7 @@ import {
 } from "@owlbear-rodeo/sdk";
 import ringSksl from "./ring.frag";
 import { getPluginId } from "../util/getPluginId";
-import { getColorString, getLabelTextColor } from "../util/color";
+import { getColorString } from "../util/color";
 import { flattenGridScale } from "../util/flattenGridScale";
 import { Theme } from "../theme/themes";
 import { BandSet } from "../engine/types";
@@ -111,7 +111,7 @@ export function buildBandRingItems(
     }
     if (parts.length > 0) {
       const labelOffset = { x: 0, y: radius + LABEL_OFFSET };
-      items.push(getBandLabel(center, labelOffset, parts.join(" "), color, getLabelTextColor(baseColor, 180), 1, ringLabelSize));
+      items.push(getBandLabel(center, labelOffset, parts.join(" "), baseColor, 1, ringLabelSize));
     }
   });
   return items;
